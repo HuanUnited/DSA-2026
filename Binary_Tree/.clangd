@@ -1,0 +1,4 @@
+# .clangd configuration file in project root
+# Default setting for most files
+CompileFlags:
+  CompilationDatabase: "build/linux-clang"
