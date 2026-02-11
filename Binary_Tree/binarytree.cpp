@@ -144,7 +144,7 @@ int BinaryTree::_findLevel(const TreeNode *node, const int value,
   return _findLevel(node->right(), value, currentLevel + 1);
 }
 
-size_t BinaryTree::_calculateSize(const TreeNode *node) {
+size_t BinaryTree::_calculateSize(const TreeNode *node) const {
   if (!node)
     return 0;
   return (1 + _calculateSize(node->left()) + _calculateSize(node->right()));
@@ -207,13 +207,11 @@ bool BinaryTree::_compareNodes(const TreeNode *node1,
 void BinaryTree::clear() {
   _deleteSubtree(_root);
   _root = nullptr;
-  _size = 0;
 }
 
 void BinaryTree::add(const int value) {
   if (!_root) {
     _root = new TreeNode(value);
-    _size++;
     return;
   }
 
@@ -234,7 +232,6 @@ void BinaryTree::add(const int value) {
       current = current->right();
     }
   }
-  _size++;
 }
 
 bool BinaryTree::remove(const int value) {
@@ -259,7 +256,6 @@ bool BinaryTree::remove(const int value) {
     _root = nullptr;
   }
   delete leaf;
-  --_size;
   return true;
 }
 
@@ -285,26 +281,21 @@ void BinaryTree::removeSubtree(int const value) {
   }
 
   _deleteSubtree(target);
-  _size = _calculateSize(_root);
 }
 
 // --- Operators ---
 bool BinaryTree::operator==(BinaryTree const &other) const {
-  if (_size != other._size)
-    return false;
   return _compareNodes(_root, other._root);
 }
 
 BinaryTree &BinaryTree::operator=(const BinaryTree &other) noexcept {
   BinaryTree tempTree(other);
   std::swap(tempTree._root, _root);
-  std::swap(tempTree._size, _size);
   return *this;
 }
 
 BinaryTree &BinaryTree::operator=(BinaryTree &&other) noexcept {
   std::swap(other._root, _root);
-  std::swap(other._size, _size);
   return *this;
 }
 

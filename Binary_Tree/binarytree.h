@@ -24,6 +24,7 @@ public:
    * requirements.
    */
   class TreeNode {
+  private:
     int _value;
     TreeNode *_left;
     TreeNode *_right;
@@ -42,7 +43,8 @@ public:
     // --- Getters and Setters ---
 
     /** @return The current integer key of the node. */
-    int value() const { return _value; };
+    int &value() { return _value; }
+    const int &value() const { return _value; }
 
     /** @param value The new integer value to the be assigned to the node. */
     void setValue(int const value) { _value = value; };
@@ -87,10 +89,10 @@ public:
         node_ptr curr = _nodes.front();
         _nodes.pop();
 
-        if (curr->_left)
-          _nodes.push(curr->_left);
-        if (curr->_right)
-          _nodes.push(curr->_right);
+        if (curr->left())
+          _nodes.push(curr->left());
+        if (curr->right())
+          _nodes.push(curr->right());
       }
 
       return *this;
@@ -121,20 +123,15 @@ public:
 
   // --- Constructors and Destructors ---
   /** @brief Default constructor. Initializes an empty BinaryTree */
-  BinaryTree() : _root(nullptr), _size(0) {};
+  BinaryTree() : _root(nullptr) {};
 
   /** @brief Copy Constructor. */
-  BinaryTree(BinaryTree const &other) {
-    _root = _copyNode(other._root);
-    _size = other._size;
-  }
+  BinaryTree(BinaryTree const &other) { _root = _copyNode(other._root); }
 
   /** @brief Move Constructor. */
   BinaryTree(BinaryTree &&other) noexcept {
     _root = nullptr;
-    _size = 0;
     std::swap(_root, other._root);
-    std::swap(_size, other._size);
   }
 
   /** @brief Destructor. */
@@ -149,7 +146,7 @@ public:
   size_t height() const { return _getHeight(_root); }
 
   /** @return The amount of nodes in the BinaryTree. */
-  size_t size() const { return _size; };
+  size_t size() const { return _calculateSize(_root); };
 
   /** @return If the BinaryTree is balanced or not.*/
   bool balanced() const { return _balancedSubtree(_root); };
@@ -234,7 +231,6 @@ public:
 
 private:
   TreeNode *_root;
-  size_t _size;
 
   // --- Helpers ---
   TreeNode *_copyNode(const TreeNode *sourceNode);
@@ -260,7 +256,7 @@ private:
   int _findLevel(const TreeNode *node, const int value,
                  const int currentLevel) const;
 
-  size_t _calculateSize(const TreeNode *node);
+  size_t _calculateSize(const TreeNode *node) const;
 
   void _collectValues(const TreeNode *node, std::vector<int> &values) const;
 
