@@ -8,49 +8,6 @@
 #include <vector>
 
 /**
- * @class TreeNode
- * @brief A single node of the BinaryTree
- *
- * Stores an integer key and pointers to the left and right children.
- * This is implemented as a struct for easier data access as per requirements.
- */
-struct TreeNode {
-  int _value;
-  TreeNode *_left;
-  TreeNode *_right;
-
-  // --- Constructors ---
-
-  /** @brief Default constructor. Initializes children to nullptr. */
-  TreeNode() : _value(0), _left(nullptr), _right(nullptr) {};
-
-  /** @brief Parameterized constructor. */
-  explicit TreeNode(int val, TreeNode *left = nullptr,
-                    TreeNode *right = nullptr)
-      : _value(val), _left(left), _right(right) {};
-
-  // --- Getters and Setters ---
-
-  /** @return The current integer key of the node. */
-  int value() const { return _value; };
-
-  /** @param value The new integer value to the be assigned to the node. */
-  void setValue(int const value) { _value = value; };
-
-  /** @return The pointer to the left child node. */
-  TreeNode *left() const { return _left; };
-
-  /** @return The pointer to the right child node. */
-  TreeNode *right() const { return _right; };
-
-  /** @param left Pointer to the left child node. */
-  void setLeft(TreeNode *left) { _left = left; };
-
-  /** @param right Pointer to the right child node. */
-  void setRight(TreeNode *right) { _right = right; };
-};
-
-/**
  *  @class BinaryTree
  *
  *  @brief This is a non-linear container where nodes are placed via randomized
@@ -58,6 +15,51 @@ struct TreeNode {
  */
 class BinaryTree {
 public:
+  /**
+   * @class TreeNode
+   * @brief A single node of the BinaryTree
+   *
+   * Stores an integer key and pointers to the left and right children.
+   * This is implemented as a struct for easier data access as per
+   * requirements.
+   */
+  class TreeNode {
+    int _value;
+    TreeNode *_left;
+    TreeNode *_right;
+
+  public:
+    // --- Constructors ---
+
+    /** @brief Default constructor. Initializes children to nullptr. */
+    TreeNode() : _value(0), _left(nullptr), _right(nullptr) {};
+
+    /** @brief Parameterized constructor. */
+    explicit TreeNode(int val, TreeNode *left = nullptr,
+                      TreeNode *right = nullptr)
+        : _value(val), _left(left), _right(right) {};
+
+    // --- Getters and Setters ---
+
+    /** @return The current integer key of the node. */
+    int value() const { return _value; };
+
+    /** @param value The new integer value to the be assigned to the node. */
+    void setValue(int const value) { _value = value; };
+
+    /** @return The pointer to the left child node. */
+    TreeNode *left() const { return _left; };
+
+    /** @return The pointer to the right child node. */
+    TreeNode *right() const { return _right; };
+
+    /** @param left Pointer to the left child node. */
+    void setLeft(TreeNode *left) { _left = left; };
+
+    /** @param right Pointer to the right child node. */
+    void setRight(TreeNode *right) { _right = right; };
+  };
+
   /**@class Iterator
    *
    * @brief This an implemented iterator class used to navigate the BinaryTree
@@ -77,8 +79,8 @@ public:
         _nodes.push(root);
     }
 
-    reference operator*() const { return _nodes.front()->_value; }
-    pointer operator->() const { return &(_nodes.front()->_value); }
+    reference operator*() const { return _nodes.front()->value(); }
+    pointer operator->() const { return &(_nodes.front()->value()); }
 
     Iterator &operator++() {
       if (!_nodes.empty()) {

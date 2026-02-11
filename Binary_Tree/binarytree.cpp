@@ -15,13 +15,14 @@
 
 // --- BinaryTree Method Definitions ---
 // --- Helpers ---
-TreeNode *BinaryTree::_copyNode(const TreeNode *sourceNode) {
+BinaryTree::TreeNode *BinaryTree::_copyNode(const TreeNode *sourceNode) {
+
   if (!sourceNode)
     return nullptr;
 
-  TreeNode *newNode = new TreeNode(sourceNode->_value);
-  newNode->_left = _copyNode(sourceNode->_left);
-  newNode->_right = _copyNode(sourceNode->_right);
+  TreeNode *newNode = new TreeNode(sourceNode->value());
+  newNode->setRight(_copyNode(sourceNode->left()));
+  newNode->setLeft(_copyNode(sourceNode->right()));
 
   return newNode;
 }
@@ -29,8 +30,8 @@ TreeNode *BinaryTree::_copyNode(const TreeNode *sourceNode) {
 void BinaryTree::_deleteSubtree(TreeNode *node) {
   if (!node)
     return;
-  _deleteSubtree(node->_left);
-  _deleteSubtree(node->_right);
+  _deleteSubtree(node->left());
+  _deleteSubtree(node->right());
   delete node;
   node = nullptr;
 }
@@ -38,54 +39,55 @@ void BinaryTree::_deleteSubtree(TreeNode *node) {
 size_t BinaryTree::_getHeight(const TreeNode *node) const {
   if (!node)
     return 0;
-  return 1 + std::max(_getHeight(node->_left), _getHeight(node->_right));
+  return 1 + std::max(_getHeight(node->left()), _getHeight(node->right()));
 }
 
 bool BinaryTree::_balancedSubtree(const TreeNode *node) const {
   if (!node)
     return true;
-  size_t height_left = _getHeight(node->_left);
-  size_t height_right = _getHeight(node->_right);
+  size_t heightleft = _getHeight(node->left());
+  size_t heightright = _getHeight(node->right());
 
-  size_t diff = (height_left > height_right) ? (height_left - height_right)
-                                             : (height_right - height_left);
+  size_t diff = (heightleft > heightright) ? (heightleft - heightright)
+                                           : (heightright - heightleft);
 
   if (diff > 1)
     return false;
 
-  return _balancedSubtree(node->_left) && _balancedSubtree(node->_right);
+  return _balancedSubtree(node->left()) && _balancedSubtree(node->right());
 }
 
 int BinaryTree::_minSubtree(const TreeNode *node) const {
   if (!node)
     return INT_MAX;
-  int res = node->_value;
-  int leftRes = _minSubtree(node->_left);
-  int rightRes = _minSubtree(node->_right);
+  int res = node->value();
+  int leftRes = _minSubtree(node->left());
+  int rightRes = _minSubtree(node->right());
   return std::min({res, leftRes, rightRes});
 }
 
 int BinaryTree::_maxSubtree(const TreeNode *node) const {
   if (!node)
     return INT_MIN;
-  int res = node->_value;
-  int leftRes = _maxSubtree(node->_left);
-  int rightRes = _maxSubtree(node->_right);
+  int res = node->value();
+  int leftRes = _maxSubtree(node->left());
+  int rightRes = _maxSubtree(node->right());
   return std::max({res, leftRes, rightRes});
 }
 
-TreeNode *BinaryTree::_findSubtree(const int value, TreeNode *node) {
+BinaryTree::TreeNode *BinaryTree::_findSubtree(const int value,
+                                               TreeNode *node) {
   if (!node)
     return nullptr;
-  if (node->_value == value)
+  if (node->value() == value)
     return node;
   TreeNode *lnode{nullptr}, *rnode{nullptr};
-  if (node->_left)
-    lnode = _findSubtree(value, node->_left);
+  if (node->left())
+    lnode = _findSubtree(value, node->left());
   if (lnode != nullptr)
     return lnode;
-  if (node->_right)
-    rnode = _findSubtree(value, node->_right);
+  if (node->right())
+    rnode = _findSubtree(value, node->right());
   if (rnode != nullptr)
     return rnode;
   else
@@ -95,20 +97,20 @@ TreeNode *BinaryTree::_findSubtree(const int value, TreeNode *node) {
 bool BinaryTree::_isLeaf(const TreeNode *node) const {
   if (!node)
     return false;
-  if (!(node->_left) && !(node->_right))
+  if (!(node->left()) && !(node->right()))
     return true;
   else
     return false;
 }
 
-TreeNode *BinaryTree::_findLeaf(TreeNode *node) {
+BinaryTree::TreeNode *BinaryTree::_findLeaf(TreeNode *node) {
   if (_isLeaf(node))
     return node;
   else {
-    TreeNode *lbranch = _findLeaf(node->_left);
+    TreeNode *lbranch = _findLeaf(node->left());
     if (_isLeaf(lbranch))
       return lbranch;
-    TreeNode *rbranch = _findLeaf(node->_right);
+    TreeNode *rbranch = _findLeaf(node->right());
     if (_isLeaf(rbranch))
       return rbranch;
     else
@@ -116,53 +118,54 @@ TreeNode *BinaryTree::_findLeaf(TreeNode *node) {
   }
 }
 
-TreeNode *BinaryTree::_findParent(TreeNode *root, TreeNode *target) {
+BinaryTree::TreeNode *BinaryTree::_findParent(TreeNode *root,
+                                              TreeNode *target) {
   if (!root || root == target)
     return nullptr;
-  if (root->_left == target || root->_right == target)
+  if (root->left() == target || root->right() == target)
     return root;
-  TreeNode *leftSearch = _findParent(root->_left, target);
+  TreeNode *leftSearch = _findParent(root->left(), target);
   if (leftSearch)
     return leftSearch;
-  return _findParent(root->_right, target);
+  return _findParent(root->right(), target);
 }
 
 int BinaryTree::_findLevel(const TreeNode *node, const int value,
                            const int currentLevel) const {
   if (!node)
     return -1;
-  if (node->_value == value)
+  if (node->value() == value)
     return currentLevel;
 
-  int leftLevel = _findLevel(node->_left, value, currentLevel + 1);
+  int leftLevel = _findLevel(node->left(), value, currentLevel + 1);
   if (leftLevel != -1)
     return leftLevel;
 
-  return _findLevel(node->_right, value, currentLevel + 1);
+  return _findLevel(node->right(), value, currentLevel + 1);
 }
 
 size_t BinaryTree::_calculateSize(const TreeNode *node) {
   if (!node)
     return 0;
-  return (1 + _calculateSize(node->_left) + _calculateSize(node->_right));
+  return (1 + _calculateSize(node->left()) + _calculateSize(node->right()));
 }
 
 void BinaryTree::_collectValues(const TreeNode *node,
                                 std::vector<int> &values) const {
   if (!node)
     return;
-  values.push_back(node->_value);
-  _collectValues(node->_right, values);
-  _collectValues(node->_left, values);
+  values.push_back(node->value());
+  _collectValues(node->right(), values);
+  _collectValues(node->left(), values);
 }
 
 void BinaryTree::_printHorizontal(const TreeNode *node, int level) const {
   if (!node)
     return;
 
-  _printHorizontal(node->_right, level + 1);
-  std::cout << std::string(level * 4, ' ') << " -> " << node->_value << '\n';
-  _printHorizontal(node->_left, level + 1);
+  _printHorizontal(node->right(), level + 1);
+  std::cout << std::string(level * 4, ' ') << " -> " << node->value() << '\n';
+  _printHorizontal(node->left(), level + 1);
 }
 
 void BinaryTree::_printLevel(TreeNode *root) const {
@@ -177,11 +180,11 @@ void BinaryTree::_printLevel(TreeNode *root) const {
     for (size_t i = 0; i < levelSize; i++) {
       TreeNode *node = q.front();
       q.pop();
-      std::cout << node->_value << " ";
-      if (node->_left)
-        q.push(node->_left);
-      if (node->_right)
-        q.push(node->_right);
+      std::cout << node->value() << " ";
+      if (node->left())
+        q.push(node->left());
+      if (node->right())
+        q.push(node->right());
     }
     std::cout << '\n';
     levelCount++;
@@ -192,10 +195,11 @@ bool BinaryTree::_compareNodes(const TreeNode *node1,
                                const TreeNode *node2) const {
   if (!node1 && !node2)
     return true;
-  if ((!node1 && node2) || (node1 && !node2) || node1->_value != node2->_value)
+  if ((!node1 && node2) || (node1 && !node2) ||
+      node1->value() != node2->value())
     return false;
-  return _compareNodes(node1->_left, node2->_left) &&
-         _compareNodes(node1->_right, node2->_right);
+  return _compareNodes(node1->left(), node2->left()) &&
+         _compareNodes(node1->right(), node2->right());
 }
 
 // --- Modifiers ---
@@ -217,17 +221,17 @@ void BinaryTree::add(const int value) {
   while (true) {
     bool goLeft = std::rand() & 1;
     if (goLeft) {
-      if (!current->_left) {
-        current->_left = new TreeNode(value);
+      if (!current->left()) {
+        current->setLeft(new TreeNode(value));
         break;
       }
-      current = current->_left;
+      current = current->left();
     } else {
-      if (!current->_right) {
-        current->_right = new TreeNode(value);
+      if (!current->right()) {
+        current->setRight(new TreeNode(value));
         break;
       }
-      current = current->_right;
+      current = current->right();
     }
   }
   _size++;
@@ -240,14 +244,16 @@ bool BinaryTree::remove(const int value) {
 
   TreeNode *leaf = _findLeaf(_root);
   if (leaf != target) {
-    std::swap(target->_value, leaf->_value);
+    int temp = leaf->value();
+    leaf->setValue(target->value());
+    target->setValue(temp);
   }
   TreeNode *parent = _findParent(_root, leaf);
   if (parent) {
-    if (parent->_left == leaf)
-      parent->_left = nullptr;
+    if (parent->left() == leaf)
+      parent->setLeft(nullptr);
     else
-      parent->_right = nullptr;
+      parent->setRight(nullptr);
 
   } else {
     _root = nullptr;
@@ -261,7 +267,7 @@ void BinaryTree::removeSubtree(int const value) {
   if (!_root)
     return;
 
-  if (_root->_value == value) {
+  if (_root->value() == value) {
     clear();
     return;
   }
@@ -272,10 +278,10 @@ void BinaryTree::removeSubtree(int const value) {
 
   TreeNode *parent = _findParent(_root, target);
   if (parent) {
-    if (parent->_left == target)
-      parent->_left = nullptr;
+    if (parent->left() == target)
+      parent->setLeft(nullptr);
     else
-      parent->_right = nullptr;
+      parent->setRight(nullptr);
   }
 
   _deleteSubtree(target);
