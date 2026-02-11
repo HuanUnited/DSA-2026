@@ -156,18 +156,13 @@ void BinaryTree::_collectValues(const TreeNode *node,
   _collectValues(node->_left, values);
 }
 
-void BinaryTree::_printHorizontal(const TreeNode *node, int space) const {
+void BinaryTree::_printHorizontal(const TreeNode *node, int level) const {
   if (!node)
     return;
-  space += 10;
-  _printHorizontal(node->_right, space);
 
-  std::cout << std::endl;
-  for (int i = 10; i < space; i++)
-    std::cout << " ";
-  std::cout << node->_value << '\n';
-
-  _printHorizontal(node->_left, space);
+  _printHorizontal(node->_right, level + 1);
+  std::cout << std::string(level * 4, ' ') << " -> " << node->_value << '\n';
+  _printHorizontal(node->_left, level + 1);
 }
 
 void BinaryTree::_printLevel(TreeNode *root) const {
@@ -175,8 +170,10 @@ void BinaryTree::_printLevel(TreeNode *root) const {
     return;
   std::queue<TreeNode *> q;
   q.push(root);
+  int levelCount = 0;
   while (!q.empty()) {
     size_t levelSize = q.size();
+    std::cout << "L" << levelCount << ": ";
     for (size_t i = 0; i < levelSize; i++) {
       TreeNode *node = q.front();
       q.pop();
@@ -187,6 +184,7 @@ void BinaryTree::_printLevel(TreeNode *root) const {
         q.push(node->_right);
     }
     std::cout << '\n';
+    levelCount++;
   }
 }
 
