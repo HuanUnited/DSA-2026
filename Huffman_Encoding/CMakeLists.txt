@@ -16,8 +16,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #With this setup, the name of the executable will be the same as the project name.
 add_executable(${PROJECT_NAME}
     main.cpp
-    binarytree.cpp
-    binarytree.h
+    bitvector.hpp
+    huffman.hpp
 )
 
 # Optional: useful compile flags for warnings (adjust to taste)
