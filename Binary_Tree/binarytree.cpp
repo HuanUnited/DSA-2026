@@ -21,8 +21,8 @@ BinaryTree::TreeNode *BinaryTree::_copyNode(const TreeNode *sourceNode) {
     return nullptr;
 
   TreeNode *newNode = new TreeNode(sourceNode->value());
-  newNode->setRight(_copyNode(sourceNode->left()));
-  newNode->setLeft(_copyNode(sourceNode->right()));
+  newNode->setLeft(_copyNode(sourceNode->left()));
+  newNode->setRight(_copyNode(sourceNode->right()));
 
   return newNode;
 }
@@ -104,18 +104,12 @@ bool BinaryTree::_isLeaf(const TreeNode *node) const {
 }
 
 BinaryTree::TreeNode *BinaryTree::_findLeaf(TreeNode *node) {
-  if (_isLeaf(node))
-    return node;
-  else {
-    TreeNode *lbranch = _findLeaf(node->left());
-    if (_isLeaf(lbranch))
-      return lbranch;
-    TreeNode *rbranch = _findLeaf(node->right());
-    if (_isLeaf(rbranch))
-      return rbranch;
-    else
-      return nullptr;
-  }
+  if (!node)           return nullptr;   // guard: never recurse into nullptr
+  if (_isLeaf(node))   return node;
+  // Try left first, then right; whichever finds a leaf first wins
+  TreeNode *found = _findLeaf(node->left());
+  if (found)           return found;
+  return               _findLeaf(node->right());
 }
 
 BinaryTree::TreeNode *BinaryTree::_findParent(TreeNode *root,
