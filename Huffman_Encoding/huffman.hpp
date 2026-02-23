@@ -243,6 +243,43 @@ public:
     return static_cast<double>(input.size() * 8) /
            static_cast<double>(output.size());
   }
+
+  /**
+   * @param encoded
+   * @param output
+   * @brief
+   */
+  bool decode(const std::string &encoded, std::string &output) {
+    if (!_root)
+      return false;
+    output.clear();
+
+    if (_root->isLeaf()) {
+      for (char c : encoded) {
+        if (c != '0' && c != '1')
+          return false;
+        output += static_cast<char>(_root->_ch);
+      }
+      return true;
+    }
+
+    Node *cur = _root.get();
+    for (char c : encoded) {
+      if (c == '0')
+        cur = cur->_left.get();
+      else if (c == '1')
+        cur = cur->_right.get();
+      else
+        return false;
+      if (!cur)
+        return false;
+      if (cur->isLeaf()) {
+        output += static_cast<char>(cur->_ch);
+        cur = _root.get();
+      }
+    }
+    return cur == _root.get();
+  }
 };
 
 #endif // HUFFMAN
