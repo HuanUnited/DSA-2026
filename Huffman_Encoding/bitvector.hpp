@@ -19,20 +19,15 @@ inline size_t max(size_t a, size_t b) { return (a >= b ? a : b); }
 
 class BitVector {
 public:
-  // Byte to Bit converter
   static size_t bytes_for_bits(size_t bits) {
     return (bits + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
   }
 
-  // Clean garbage bits and preserve valid bits (т.е: Valid bit filter.)
   byte_t last_byte_mask() const {
-    size_t rem =
-        nbits % BITS_PER_BYTE; // remainder bits (valid bits in the last byte)
+    size_t rem = nbits % BITS_PER_BYTE;
     if (rem == 0)
-      return static_cast<byte_t>(~byte_t(0)); // returns all 1 mask = 11111111
-    return static_cast<byte_t>((1u << rem) -
-                               1u); // returns a mask with all 1s in the lowest
-                                    // bit eg 1u << 3 - 1 = 00001111
+      return static_cast<byte_t>(~byte_t(0));
+    return static_cast<byte_t>((1u << rem) - 1u);
   }
 
   // Range Checker
@@ -45,27 +40,21 @@ private:
   std::unique_ptr<byte_t[]> data;
   size_t nbits = 0;
 
-  // TODO: Class in Class, interesting.
 public:
-  // BoolRef proxy: supports bv[i] = bool; and bool(bv[i])
   class BoolRef {
     BitVector &bv;
     size_t idx;
 
   public:
     BoolRef(BitVector &parent, size_t i) : bv(parent), idx(i) {}
-    // assign a bool
     BoolRef &operator=(bool val) {
       bv.set(idx, val);
       return *this;
     }
-    // assign from another BoolRef
     BoolRef &operator=(const BoolRef &other) {
       return (*this = static_cast<bool>(other));
     }
-    // convert to bool for reading
     operator bool() const { return bv.get(idx); }
-    // flip convenience
     BoolRef &flip() {
       bv.flip(idx);
       return *this;
@@ -114,10 +103,6 @@ public:
     if (nbytes) {
       data = std::make_unique<byte_t[]>(nbytes);
       std::memcpy(data.get(), other.data.get(), nbytes);
-      // Other option in case no standard library.
-      // for(size_t i = 0; i < nbits; ++i){
-      //   data[i] = other.data[i];
-      // }
     }
   }
 
@@ -129,17 +114,12 @@ public:
     if (nbytes) {
       auto tmp = std::unique_ptr<byte_t[]>(new byte_t[nbytes]);
       std::memcpy(tmp.get(), other.data.get(), nbytes);
-      // Other option in case no standard library.
-      // for(size_t i = 0; i < nbits; ++i){
-      //   data[i] = other.data[i];
-      // }
-      data.swap(tmp); // unique_ptr swap.
+      data.swap(tmp);
     } else {
-      data.reset(); // unique_ptr = nullptr.
+      data.reset();
     }
     nbits = other.nbits;
     return *this;
-    // No need for delete temp[], unique ptr deletes itself.
   }
 
   BitVector(BitVector &&) noexcept = default;
@@ -148,17 +128,15 @@ public:
 
   // position: byte and offset:
   inline pair coord(size_t i) const {
-    size_t b = i / BITS_PER_BYTE;   // which byte
-    size_t off = i % BITS_PER_BYTE; // offset
+    size_t b = i / BITS_PER_BYTE;
+    size_t off = i % BITS_PER_BYTE;
     return {b, off};
   }
 
-  // swap
   void swap(BitVector &other) noexcept {
     data.swap(other.data);
     std::swap(nbits, other.nbits);
   }
-  // outside swap function.
   friend void swap(BitVector &a, BitVector &b) noexcept { a.swap(b); }
 
   // длина (количество бит) вектора;
@@ -166,53 +144,32 @@ public:
 
   // Получение компоненты подразумевается только на чтение
   bool get(size_t i) const {
-    // boundary check
     check_index(i);
-    pair position = coord(i); // abstraction is stupid
-    // size_t b = i / BITS_PER_BYTE; // find out which byte contains the bit
-    // size_t off = i % BITS_PER_BYTE; // find the bit offset in the byte.
-    return (data[position.first] >> position.second) &
-           1u; // shifts right by the offset to move the required bit to the
-               // least significant pos, masks the bit with 1u (00000001) then
-               // returns the bit as either true or false.
+    pair position = coord(i);
+    return (data[position.first] >> position.second) & 1u;
   }
 
   // Установка в 0/1 в i-той позиции
   void set(size_t i, bool value) {
     check_index(i);
-    // size_t b = i / BITS_PER_BYTE; // which byte
-    // size_t off = i % BITS_PER_BYTE; // offset
-
     pair b = coord(i);
-
-    // TODO: Need explanation here.
-    byte_t mask = static_cast<byte_t>(
-        1u << b.second); // create a mask at the position of the target bit.
-    if (value) // if the value is true, then use the OR operation to set the
-               // bit at that position to true.
+    byte_t mask = static_cast<byte_t>(1u << b.second);
+    if (value)
       data[b.first] |= mask;
-    else // if it is false create an inverted mask say iu << 2 = 00000100 ~mask
-         // = 11111011 and use the AND operator to force that bit to turn off.
+    else
       data[b.first] &= static_cast<byte_t>(~mask);
   }
 
   // flip single bit (invert i-th)
   void flip(size_t i) {
-    // TODO: Here are some repeating actions for the same function, can we not
-    // repeat ourselves?
     check_index(i);
-    // size_t b = i / BITS_PER_BYTE; // which byte
-    // size_t off = i % BITS_PER_BYTE; // offset
     pair b = coord(i);
     // TODO: Another explanation here.
-    data[b.first] ^= static_cast<byte_t>(
-        1u << b.second); // creates a mask at the offset position, then uses
-                         // the XOR operator to flip.
+    data[b.first] ^= static_cast<byte_t>(1u << b.second);
   }
 
   // flip all bits
   void flipAll() {
-    // TODO: Is flipping and inverting the same thing?
     size_t nbytes = bytes_for_bits(nbits);
     for (size_t i = 0; i < nbytes; ++i)
       data[i] = static_cast<byte_t>(~data[i]);
@@ -226,7 +183,6 @@ public:
       return;
     if (i + k > nbits)
       throw std::out_of_range("Range out of bounds");
-    // already optimized
     for (size_t pos = i; pos < i + k; ++pos)
       set(pos, value);
   }
@@ -238,9 +194,6 @@ public:
       return;
     for (size_t pos = 0; pos < nbits; ++pos)
       set(pos, value); // operates bitwise.
-    // std::fill_n(data.get(), nbytes, value ? byte_t(0xFF) : byte_t(0x00));
-    // magic that makes things work properly. -> clears all unused bits in the
-    // last byte to zero.
     if (value && (nbits % BITS_PER_BYTE != 0))
       data[nbytes - 1] &= last_byte_mask();
   }
@@ -248,20 +201,6 @@ public:
   // Вес вектора (количество единичных компонент).
   size_t weight() const {
     size_t cnt = 0;
-    // size_t nbytes = bytes_for_bits(nbits);
-    // for (size_t i = 0; i < nbytes; ++i) {
-    //   cnt += __builtin_popcount(static_cast<unsigned int>(data[i]));
-    // }
-    // // subtract bits in spare area if any (they should be cleared on
-    // operations,
-    // // but safe)
-    // // TODO: What does this do and why.
-    // if (nbytes && (nbits % BITS_PER_BYTE != 0)) {
-    //   byte_t mask = last_byte_mask();
-    //   byte_t spare = static_cast<byte_t>(data[nbytes - 1] & ~mask);
-    //   if (spare) cnt -= __builtin_popcount(static_cast<unsigned int>(spare));
-    // }
-
     for (size_t i = 0; i < nbits; ++i) {
       if (get(i)) {
         cnt++;
@@ -284,7 +223,6 @@ public:
     if (nbits != rhs.nbits) {
       return false;
     }
-    // non optimal solution
     for (size_t i = 0; i < nbits; i++) {
       if (get(i) != rhs.get(i))
         return false;
@@ -294,9 +232,6 @@ public:
 
   // Bitwise operators: &, |, ^ and their compound forms
   BitVector operator&(const BitVector &rhs) const {
-    // if (nbits != rhs.nbits) {
-    //   throw std::invalid_argument("Sizes must match for &");
-    // }
     BitVector out(*this);
     size_t nbytes = bytes_for_bits(max(nbits, rhs.nbits));
     for (size_t i = 0; i < nbytes; ++i)
@@ -311,8 +246,6 @@ public:
   }
 
   BitVector operator|(const BitVector &rhs) const {
-    // if (nbits != rhs.nbits)
-    //   throw std::invalid_argument("Sizes must match for |");
     BitVector out(*this);
     size_t nbytes = bytes_for_bits(max(nbits, rhs.nbits));
     for (size_t i = 0; i < nbytes; ++i)
@@ -327,8 +260,6 @@ public:
   }
 
   BitVector operator^(const BitVector &rhs) const {
-    // if (nbits != rhs.nbits)
-    // throw std::invalid_argument("Sizes must match for ^");
     BitVector out(*this);
     size_t nbytes = bytes_for_bits(max(nbits, rhs.nbits));
     for (size_t i = 0; i < nbytes; ++i)
@@ -409,14 +340,11 @@ inline std::istream &operator>>(std::istream &is, BitVector &bv) {
       return is;
     }
 
-  // Creates a bitvector with the length of the string, then sets all values
-  // equal to 1 to true within the vector.
   bv = BitVector(s.size());
   for (size_t i = 0; i < s.size(); ++i)
     if (s[i] == '1')
       bv.set(i, true);
 
-  // Returns the text.
   return is;
 }
 

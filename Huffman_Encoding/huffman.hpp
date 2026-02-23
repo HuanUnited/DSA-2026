@@ -203,6 +203,46 @@ private:
   }
 
 public:
+  HuffmanCoder() = default;
+
+  /**
+   * @param text
+   * @brief построить дерево из строки (старое дерево удаляется)
+   */
+  void build(const std::string &text) {
+    std::unordered_map<int, size_t> freq;
+    for (unsigned char c : text)
+      ++freq[c];
+    _buildFromFreq(freq);
+  }
+
+  /**
+   * @param input
+   * @param output
+   * @brief Возращает коэффициент сжатия (original_bits / compressed_bits) или
+   * -1
+   */
+  double encode(const std::string &input, std::string &output) {
+    if (!_root)
+      build(input);
+    if (_codeTable.empty())
+      return -1.0;
+
+    output.clear();
+    for (unsigned char c : input) {
+      auto it = _codeTable.find(c);
+      if (it == _codeTable.end())
+        return -1.0;
+      const BitVector &code = it->second;
+      for (size_t i = 0; i < code.size(); ++i)
+        output += (code[i] ? '1' : '0');
+    }
+
+    if (output.empty())
+      return -1.0;
+    return static_cast<double>(input.size() * 8) /
+           static_cast<double>(output.size());
+  }
 };
 
 #endif // HUFFMAN
