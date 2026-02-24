@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "avltree.h"
 #include "binarysearchtree.h"
 #include "binarytree.h"
 #include "treewidget.h"
@@ -70,7 +71,7 @@ private:
   QLineEdit *_valueInput;
   QTextEdit *_outputDisplay;
   QLabel *_tree2StatusLabel;
-  QComboBox  *_treeTypeSelector;
+  QComboBox *_treeTypeSelector;
 
   // Data
   std::unique_ptr<BinaryTree> _tree;

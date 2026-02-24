@@ -13,14 +13,16 @@ SOURCES += \
     treewidget.cpp \
     treetests.cpp \
     binarytree.cpp \
-    binarysearchtree.cpp
+    binarysearchtree.cpp \
+    avltree.cpp
 
 HEADERS += \
     mainwindow.h \
     treewidget.h \
     treetests.h \
     binarytree.h \
-    binarysearchtree.h
+    binarysearchtree.h \
+    avltree.h
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

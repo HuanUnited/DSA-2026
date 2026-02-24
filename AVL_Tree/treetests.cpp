@@ -1,4 +1,5 @@
 #include "treetests.h"
+#include "avltree.h"
 #include "binarysearchtree.h"
 #include <algorithm>
 #include <vector>
@@ -28,6 +29,7 @@ QVector<TestResult> TreeTests::runAll() {
     test_vector_and_operators(results);
     test_random_tree         (results);
     test_bst_operations      (results);
+    test_avl_operations      (results);
     return results;
 }
 
@@ -286,5 +288,64 @@ void TreeTests::test_bst_operations(QVector<TestResult> &out) {
         pass(out, "BST Remove: Root node (two children) replaced correctly");
     } else {
         fail(out, "BST Remove: Failed to remove root properly");
+    }
+}
+
+// ── Suite: AVL Tree Operations ──────────────────────────────────────
+
+void TreeTests::test_avl_operations(QVector<TestResult> &out) {
+    AvlTree avl;
+
+    // 1. Test Right-Right (RR) case requiring Left Rotation
+    avl.add(10); avl.add(20); avl.add(30);
+    if (avl.root() && avl.root()->value() == 20 && avl.height() == 2) {
+        pass(out, "AVL LL Rotation (RR case): Root is 20, Height is 2");
+    } else {
+        fail(out, "AVL LL Rotation (RR case): Failed",
+             QString("Root: %1, Height: %2").arg(avl.root() ? avl.root()->value() : -1).arg(avl.height()));
+    }
+    avl.clear();
+
+    // 2. Test Left-Left (LL) case requiring Right Rotation
+    avl.add(30); avl.add(20); avl.add(10);
+    if (avl.root() && avl.root()->value() == 20 && avl.height() == 2) {
+        pass(out, "AVL RR Rotation (LL case): Root is 20, Height is 2");
+    } else {
+        fail(out, "AVL RR Rotation (LL case): Failed");
+    }
+    avl.clear();
+
+    // 3. Test Left-Right (LR) case requiring Left-Right Rotation
+    avl.add(30); avl.add(10); avl.add(20);
+    if (avl.root() && avl.root()->value() == 20 && avl.height() == 2) {
+        pass(out, "AVL LR Rotation: Root is 20, Height is 2");
+    } else {
+        fail(out, "AVL LR Rotation: Failed");
+    }
+    avl.clear();
+
+    // 4. Test Right-Left (RL) case requiring Right-Left Rotation
+    avl.add(10); avl.add(30); avl.add(20);
+    if (avl.root() && avl.root()->value() == 20 && avl.height() == 2) {
+        pass(out, "AVL RL Rotation: Root is 20, Height is 2");
+    } else {
+        fail(out, "AVL RL Rotation: Failed");
+    }
+
+    // 5. Test copySubtree
+    std::unique_ptr<AvlTree> copied(avl.copySubtree(avl.root()));
+    if (copied && copied->size() == 3 && copied->root()->value() == 20) {
+        pass(out, "AVL copySubtree: Correctly copies structure and values");
+    } else {
+        fail(out, "AVL copySubtree: Failed to copy correctly");
+    }
+
+    // 6. Test Deletion Balancing
+    avl.add(40); avl.add(50); // Causes rotation
+    avl.remove(10); // Removing node from left side should trigger rebalance
+    if (avl.balanced() && avl.find(10) == nullptr) {
+        pass(out, "AVL Deletion: Maintains balance after removal");
+    } else {
+        fail(out, "AVL Deletion: Tree unbalanced after removal");
     }
 }

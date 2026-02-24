@@ -233,18 +233,16 @@ public:
 
 protected:
   TreeNode *_root;
+  size_t _getHeight(const TreeNode *node) const;
+  TreeNode *_copyNode(const TreeNode *sourceNode);
+  int _minSubtree(const TreeNode *node) const;
 
 private:
   // --- Helpers ---
-  TreeNode *_copyNode(const TreeNode *sourceNode);
 
   void _deleteSubtree(TreeNode *node);
 
-  size_t _getHeight(const TreeNode *node) const;
-
   bool _balancedSubtree(const TreeNode *node) const;
-
-  int _minSubtree(const TreeNode *node) const;
 
   int _maxSubtree(const TreeNode *node) const;
 

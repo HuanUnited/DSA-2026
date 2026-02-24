@@ -1,3 +1,4 @@
+#include "avltree.h"
 #include "binarysearchtree.h"
 #include "binarytree.h"
 #include <algorithm>
@@ -196,6 +197,54 @@ void test_bst_ops() {
   test_passed("BST Deletion (Node with two children)");
 }
 
+void test_avl_ops() {
+  section_header("AVL Tree Operations (20pts)");
+
+  AvlTree avl;
+
+  // Right heavy insertion (Left rotation)
+  avl.add(1);
+  avl.add(2);
+  avl.add(3);
+  assert(avl.root()->value() == 2);
+  assert(avl.height() == 2);
+  test_passed("AVL Left Rotation (RR case)");
+
+  avl.clear();
+
+  // Left heavy insertion (Right rotation)
+  avl.add(3);
+  avl.add(2);
+  avl.add(1);
+  assert(avl.root()->value() == 2);
+  assert(avl.height() == 2);
+  test_passed("AVL Right Rotation (LL case)");
+
+  avl.clear();
+
+  // Left-Right rotation
+  avl.add(3);
+  avl.add(1);
+  avl.add(2);
+  assert(avl.root()->value() == 2);
+  assert(avl.height() == 2);
+  test_passed("AVL Left-Right Rotation");
+
+  // Subtree copying
+  AvlTree *subCopy = avl.copySubtree(avl.root());
+  assert(subCopy->size() == 3);
+  assert(subCopy->root()->value() == 2);
+  test_passed("AVL copySubtree");
+  delete subCopy;
+
+  // Balancing on removal
+  avl.add(4);
+  avl.add(5);
+  avl.remove(1); // Triggers rebalance
+  assert(avl.balanced());
+  test_passed("AVL Rebalance on Deletion");
+}
+
 void test_all() {
   try {
     test_basic_ops();
@@ -206,6 +255,7 @@ void test_all() {
     test_random_tree();
     test_print();
     test_bst_ops(); // Execute the BST suite
+    test_avl_ops();
     std::cout << GREEN << "\nAll tree tests passed successfully!" << RESET
               << std::endl;
   } catch (const std::exception &e) {
