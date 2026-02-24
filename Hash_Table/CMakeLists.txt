@@ -14,8 +14,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Define the executable and source files
 add_executable(${PROJECT_NAME}
     main.cpp
-    bitvector.hpp
-    huffman.hpp
+    hashtable.cpp
 )
 
 # 2. IMPROVED: Compiler flags for both Windows (MSVC) and Unix (Clang/GCC)
