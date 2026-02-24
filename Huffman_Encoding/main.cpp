@@ -6,7 +6,6 @@
 #include "huffman.hpp"
 
 #include <cassert>
-#include <cstdio>
 #include <fstream>
 #include <ios>
 #include <iostream>
