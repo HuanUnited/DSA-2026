@@ -283,7 +283,8 @@ public:
     return cur == _root.get();
   }
 
-  double encodeFile(const std::string &inputFile, std::string &outputFile) {
+  double encodeFile(const std::string &inputFile,
+                    const std::string &outputFile) {
     std::ifstream in(inputFile, std::ios::binary);
     if (!in)
       return -1.0;
@@ -340,14 +341,13 @@ public:
   }
 
   bool decodeFile(const std::string &inputFile, const std::string &outputFile) {
-    std::fstream in(inputFile, std::ios::binary);
+    std::ifstream in(inputFile, std::ios::binary);
     if (!in)
       return false;
 
     uint32_t numChars = 0;
     if (!in.read(reinterpret_cast<char *>(&numChars), sizeof(numChars)))
-      ;
-    return false;
+      return false;
 
     std::unordered_map<int, BitVector> table;
     for (uint32_t i = 0; i < numChars; ++i) {
@@ -407,13 +407,13 @@ public:
       throw std::runtime_error("exportTree: не удалось открыть " + filename);
 
     uint32_t numChars = static_cast<uint32_t>(_codeTable.size());
-    out.write(reinterpret_cast<const char *>(&numChars), 1);
+    out.write(reinterpret_cast<const char *>(&numChars), sizeof(numChars));
 
     for (auto &[ch, code] : _codeTable) {
       uint8_t sym = static_cast<uint8_t>(ch);
       uint8_t clen = static_cast<uint8_t>(code.size());
       out.write(reinterpret_cast<const char *>(&sym), 1);
-      out.write(reinterpret_cast<const char *>(&sym), 1);
+      out.write(reinterpret_cast<const char *>(&clen), 1);
       huffman_detail::writeBits(out, code);
     }
   }
