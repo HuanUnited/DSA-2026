@@ -1,6 +1,7 @@
-#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -19,18 +20,15 @@ enum class SortAlgorithm { BalancedMultiway, Polyphase };
 // Utilities
 // -----------------------------------------------------------------------------
 
-bool createFileWithRandomNumbers(const std::string &fileName,
-                                 const int numbersCount,
-                                 const int maxNumberValue) {
+bool createFileWithRandomNumbers(const std::vector<int> &vec,
+                                 const std::string &fileName) {
   std::ofstream outFile(fileName, std::ios::trunc);
   if (!outFile.is_open())
     return false;
 
-  std::mt19937_64 rng(12345);
-  std::uniform_int_distribution<int> dist(-maxNumberValue, maxNumberValue);
-
-  for (int i = 0; i < numbersCount; ++i) {
-    outFile << dist(rng) << (i == numbersCount - 1 ? "" : " ");
+  int vecsize = vec.size();
+  for (int i = 0; i < vecsize; ++i) {
+    outFile << vec[i] << (i == vecsize - 1 ? "" : " ");
   }
   return true;
 }
@@ -421,61 +419,153 @@ void polyphaseSort(const std::string &filename, MergeMode mode,
     std::remove(tapes[i].c_str());
 }
 
-// -----------------------------------------------------------------------------
-// Execution Hooks
-// -----------------------------------------------------------------------------
+// --------- Помощники -----------
 
-void sortFile(const std::string &fileName, SortAlgorithm algo, MergeMode mode,
-              int filesCount) {
+double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
+                        MergeMode mode, int filesCount) {
+
+  auto start = std::chrono::steady_clock::now();
+
   if (algo == SortAlgorithm::BalancedMultiway) {
     balancedMultiwaySort(fileName, filesCount, mode);
   } else {
     polyphaseSort(fileName, mode, filesCount);
   }
+
+  auto stop = std::chrono::steady_clock::now();
+  return std::chrono::duration<double, std::milli>(stop - start).count();
 }
 
-int createAndSortFile(const std::string &fileName, const int numbersCount,
-                      const int maxNumberValue, SortAlgorithm algo,
-                      MergeMode mode, int filesCount) {
-  if (!createFileWithRandomNumbers(fileName, numbersCount, maxNumberValue))
+double createAndSortFile(const std::vector<int> &vec,
+                         const std::string &fileName, SortAlgorithm algo,
+                         MergeMode mode, int filesCount) {
+
+  if (!createFileWithRandomNumbers(vec, fileName))
     return -1;
-  sortFile(fileName, algo, mode, filesCount);
+  double res = sortFilewithTime(fileName, algo, mode, filesCount);
   if (!isFileContainsSortedArray(fileName))
     return -2;
-  return 1;
+
+  return res;
+}
+
+// deterministic dataset seed
+unsigned int datasetSeed(size_t n, int lo, int hi) {
+  uint64_t s = 1469598103934665603ull;
+  s ^= n;
+  s *= 1099511628211ull;
+  s ^= static_cast<uint64_t>(lo + 0x9e3779b1);
+  s *= 1099511628211ull;
+  s ^= static_cast<uint64_t>(hi ^ 0x9e3779b1);
+  s *= 1099511628211ull;
+  return static_cast<unsigned int>(s & 0xFFFFFFFFu);
+}
+
+std::vector<int> genRandomVector(size_t n, int lo, int hi, unsigned int seed) {
+  std::vector<int> v;
+  v.reserve(n);
+  std::mt19937_64 rng(seed);
+  std::uniform_int_distribution<int> dist(lo, hi);
+  for (size_t i = 0; i < n; ++i)
+    v.push_back(dist(rng));
+  return v;
+}
+
+void writeVectorToTxt(const std::string &fname, const std::vector<int> &v) {
+  std::ofstream os(fname);
+  if (!os)
+    throw std::runtime_error("Failed to open " + fname);
+  os << v.size() << '\n';
+  for (size_t i = 0; i < v.size(); ++i) {
+    os << v[i] << (i + 1 == v.size() ? '\n' : ' ');
+  }
 }
 
 int main() {
+
+  std::ios::sync_with_stdio(false);
+  std::cin.tie(nullptr);
+
+  const std::vector<size_t> sizes = {1000u, 10000u, 100000u};
+  const std::vector<std::pair<int, int>> ranges = {
+      {-10, 10}, {-1000, 1000}, {-100000, 100000}};
+
+  std::ofstream csv("timings_count.csv", std::ios::out);
+  csv << "size,lo,hi,algorithm,run1_ms,run2_ms,run3_ms,mean_ms,sorted\n";
+  csv.close();
+
   std::string fileName = "test_data.txt";
-  const int numbersCount = 500000;
-  const int maxNumberValue = 100000;
 
-  std::cout << "Testing Balanced Multiway (Direct, n=3)...\n";
-  for (int i = 0; i < 3; i++) {
-    int result = createAndSortFile(fileName, numbersCount, maxNumberValue,
-                                   SortAlgorithm::BalancedMultiway,
-                                   MergeMode::Direct, 3);
-    std::cout << "  Pass " << i + 1 << ": " << (result == 1 ? "OK" : "FAIL")
-              << "\n";
+  std::vector<std::pair<MergeMode, SortAlgorithm>> modes{
+      {MergeMode::Direct, SortAlgorithm::BalancedMultiway},
+      {MergeMode::Natural, SortAlgorithm::BalancedMultiway},
+      {MergeMode::Natural, SortAlgorithm::Polyphase}};
+  constexpr int kFilesUsed = 3;
+
+  std::ofstream csv_append("timings_External.csv", std::ios::app);
+  csv_append << "Algorithm" << ',' << "Sorting Mode" << ',' << "Array Size"
+             << ',' << "Lowest" << ',' << "Highest"
+             << "Files" << std::fixed << std::setprecision(3)
+             << "First run time" << ',' << "Second run time" << ','
+             << "Third run time" << ',' << "Mean" << "\n";
+
+  for (auto [mode, algo] : modes) {
+    std::string s_mode = (mode == MergeMode::Direct) ? "Direct" : "Natural";
+    std::string s_algo =
+        (algo == SortAlgorithm::Polyphase) ? "Polyphase" : "BalancedMultiway";
+    std::cout << "Executing " << s_algo << " " << s_mode << "\n";
+
+    for (size_t n : sizes) {
+      for (auto [lo, hi] : ranges) {
+        // Dataset generation
+        unsigned int seed = datasetSeed(n, lo, hi);
+        std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
+                  << hi << "] seed=" << seed << " ...\n";
+        std::string fname = "data_" + std::to_string(n) + "_" +
+                            std::to_string(lo) + "_" + std::to_string(hi) +
+                            ".txt";
+
+        std::vector<int> data = genRandomVector(n, lo, hi, seed);
+        writeVectorToTxt(fname, data);
+
+        std::vector<double> runs;
+        runs.reserve(3);
+
+        for (int r = 0; r < 3; ++r) {
+          double tms =
+              createAndSortFile(data, fileName, algo, mode, kFilesUsed);
+
+          if (tms == -2) {
+            std::cerr << "ERROR: " << s_algo << " " << s_mode
+                      << " produced unsorted result"
+                      << "\n";
+            std::terminate();
+          } else if (tms == -1) {
+            std::cerr << "ERROR: " << s_algo << " " << s_mode
+                      << " unable to create file" << "\n";
+            std::terminate();
+          }
+
+          runs.push_back(tms);
+          std::cout << std::fixed << std::setprecision(2) << tms << " ms"
+                    << (r < 2 ? ", " : "");
+        }
+
+        double mean = (runs[0] + runs[1] + runs[2]) / 3.0;
+        std::cout << "  mean=" << std::fixed << std::setprecision(2) << mean
+                  << " ms\n";
+
+        std::ofstream csv_append("timings_External.csv", std::ios::app);
+        csv_append << s_algo << ',' << s_mode << ',' << n << ',' << lo << ','
+                   << hi << "," << kFilesUsed << "," << std::fixed
+                   << std::setprecision(3) << runs[0] << ',' << runs[1] << ','
+                   << runs[2] << ',' << mean << "\n";
+        csv_append.close();
+      }
+    }
   }
 
-  std::cout << "Testing Balanced Multiway (Natural, n=3)...\n";
-  for (int i = 0; i < 3; i++) {
-    int result = createAndSortFile(fileName, numbersCount, maxNumberValue,
-                                   SortAlgorithm::BalancedMultiway,
-                                   MergeMode::Natural, 3);
-    std::cout << "  Pass " << i + 1 << ": " << (result == 1 ? "OK" : "FAIL")
-              << "\n";
-  }
-
-  std::cout << "Testing Polyphase Sort (Natural, aux=3)...\n";
-  for (int i = 0; i < 3; i++) {
-    int result =
-        createAndSortFile(fileName, numbersCount, maxNumberValue,
-                          SortAlgorithm::Polyphase, MergeMode::Natural, 3);
-    std::cout << "  Pass " << i + 1 << ": " << (result == 1 ? "OK" : "FAIL")
-              << "\n";
-  }
-
+  std::cout << "All experiments complete. See timings_count.csv and data_*.txt "
+               "files.\n";
   return 0;
 }
