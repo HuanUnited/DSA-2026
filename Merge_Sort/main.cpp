@@ -20,8 +20,8 @@ enum class SortAlgorithm { BalancedMultiway, Polyphase };
 // Utilities
 // -----------------------------------------------------------------------------
 
-bool createFileWithRandomNumbers(const std::vector<int> &vec,
-                                 const std::string &fileName) {
+bool createFileFromVector(const std::vector<int> &vec,
+                          const std::string &fileName) {
   std::ofstream outFile(fileName, std::ios::trunc);
   if (!outFile.is_open())
     return false;
@@ -433,20 +433,11 @@ double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
   }
 
   auto stop = std::chrono::steady_clock::now();
-  return std::chrono::duration<double, std::milli>(stop - start).count();
-}
 
-double createAndSortFile(const std::vector<int> &vec,
-                         const std::string &fileName, SortAlgorithm algo,
-                         MergeMode mode, int filesCount) {
-
-  if (!createFileWithRandomNumbers(vec, fileName))
-    return -1;
-  double res = sortFilewithTime(fileName, algo, mode, filesCount);
   if (!isFileContainsSortedArray(fileName))
     return -2;
 
-  return res;
+  return std::chrono::duration<double, std::milli>(stop - start).count();
 }
 
 // deterministic dataset seed
@@ -481,6 +472,20 @@ void writeVectorToTxt(const std::string &fname, const std::vector<int> &v) {
   }
 }
 
+bool fileExists(const std::string &filename) {
+  std::ifstream file(filename);
+  bool exists = file.good();
+  file.close();
+  return exists;
+}
+
+void copyFile(const std::string &source, const std::string &destination) {
+  std::ifstream src(source, std::ios::binary);
+  std::ofstream dst(destination, std::ios::binary);
+
+  dst << src.rdbuf();
+}
+
 int main() {
 
   std::ios::sync_with_stdio(false);
@@ -489,12 +494,6 @@ int main() {
   const std::vector<size_t> sizes = {1000u, 10000u, 100000u};
   const std::vector<std::pair<int, int>> ranges = {
       {-10, 10}, {-1000, 1000}, {-100000, 100000}};
-
-  std::ofstream csv("timings_count.csv", std::ios::out);
-  csv << "size,lo,hi,algorithm,run1_ms,run2_ms,run3_ms,mean_ms,sorted\n";
-  csv.close();
-
-  std::string fileName = "test_data.txt";
 
   std::vector<std::pair<MergeMode, SortAlgorithm>> modes{
       {MergeMode::Direct, SortAlgorithm::BalancedMultiway},
@@ -518,23 +517,32 @@ int main() {
     for (size_t n : sizes) {
       for (auto [lo, hi] : ranges) {
         // Dataset generation
-        unsigned int seed = datasetSeed(n, lo, hi);
-        std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
-                  << hi << "] seed=" << seed << " ...\n";
         std::string fname = "data_" + std::to_string(n) + "_" +
                             std::to_string(lo) + "_" + std::to_string(hi) +
                             ".txt";
 
-        std::vector<int> data = genRandomVector(n, lo, hi, seed);
-        writeVectorToTxt(fname, data);
+        std::vector<int> data;
+        std::string data_dupe = "dupe.txt";
 
+        if (!fileExists(fname)) {
+          unsigned int seed = datasetSeed(n, lo, hi);
+          std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
+                    << hi << "] seed=" << seed << " ...\n";
+          std::vector<int> data = genRandomVector(n, lo, hi, seed);
+          writeVectorToTxt(fname, data);
+        } else {
+          std::cout << "Found dataset n=" << n << " range=[" << lo << ',' << hi
+                    << "]\n";
+        }
+
+        // Duplicate dataset
         std::vector<double> runs;
         runs.reserve(3);
 
         for (int r = 0; r < 3; ++r) {
-          double tms =
-              createAndSortFile(data, fileName, algo, mode, kFilesUsed);
+          copyFile(fname, data_dupe);
 
+          double tms = sortFilewithTime(data_dupe, algo, mode, kFilesUsed);
           if (tms == -2) {
             std::cerr << "ERROR: " << s_algo << " " << s_mode
                       << " produced unsorted result"
