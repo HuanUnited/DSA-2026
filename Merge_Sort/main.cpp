@@ -39,9 +39,6 @@ int distributeMultiway(const std::string &filename,
   int prev = current;
   int totalRuns = 1;
 
-  // For Direct Merge, it counts until p
-  // For Natural Merge, it counts until the current value < prev (it should be
-  // ascending)
   while (inMain >> current) {
     bool endOfRun = false;
     if (mode == MergeMode::Direct && countInRun >= directParitionSize)
@@ -207,38 +204,6 @@ void balancedMultiwaySort(const std::string &filename, const int filesUsed,
 // -----------------------------------------------------------------------------
 // Polyphase Sort Components
 // -----------------------------------------------------------------------------
-// --- Помощники для многофазной
-
-void rotateTapes(std::vector<int> &tapeMap, int K) {
-  int oldEmpty = tapeMap[K - 2];
-  for (int i{K - 2}; i > 0; i--) {
-    tapeMap[i] = tapeMap[i - 1];
-  }
-  tapeMap[0] = tapeMap[K - 1];
-  tapeMap[K - 1] = oldEmpty;
-}
-
-int initializeDummyRuns(const std::vector<int> &t, const std::vector<int> &a,
-                        std::vector<int> d, int K) {
-  int total_actual = 0;
-  for (int i{}; i < K; i++) {
-    d[i] = t[i] - a[i];
-    total_actual += a[i];
-  }
-  return total_actual;
-}
-
-void advanceTapeAndUpdateFibonacci(int &tapeidx, std::vector<int> &t, int K) {
-  tapeidx++;
-  if (tapeidx == K - 1) {
-    int t0 = t[0];
-    for (int i{}; i < K - 2; ++i) {
-      t[i] = t0 + t[i + 1];
-    }
-    t[K - 2] = t0;
-    tapeidx = 0;
-  }
-}
 
 // Phase 1: Fibonnaci distribution across K-1 tapes
 int distributePolyphase(const std::string &filename,
@@ -365,242 +330,239 @@ void executePolyphaseMergePass(const std::vector<std::string> &tapes,
 }
 
 void polyphaseSort(const std::string &filename, int auxFilesCount = 3) {
-  void polyphaseSort(const std::string &filename, int auxFilesCount = 3) {
 
-    int filesUsed = auxFilesCount + 1;
-    std::vector<std::string> tapes(filesUsed);
-    for (int i = 0; i < filesUsed; ++i)
-      tapes[i] = "poly_tape_" + std::to_string(i) + ".txt";
+  int filesUsed = auxFilesCount + 1;
+  std::vector<std::string> tapes(filesUsed);
+  for (int i = 0; i < filesUsed; ++i)
+    tapes[i] = "poly_tape_" + std::to_string(i) + ".txt";
 
-    std::vector<int> idealPartitions(filesUsed, 0);
-    std::vector<int> missingPartitions(filesUsed, 0);
-    std::vector<int> tapeMap(filesUsed);
-    for (int i = 0; i < filesUsed; ++i)
-      tapeMap[i] = i;
+  std::vector<int> idealPartitions(filesUsed, 0);
+  std::vector<int> missingPartitions(filesUsed, 0);
+  std::vector<int> tapeMap(filesUsed);
+  for (int i = 0; i < filesUsed; ++i)
+    tapeMap[i] = i;
 
-    int total_actual = distributePolyphase(filename, tapes, idealPartitions,
-                                           missingPartitions, filesUsed);
+  int total_actual = distributePolyphase(filename, tapes, idealPartitions,
+                                         missingPartitions, filesUsed);
 
-    if (total_actual <= 1) {
-      if (total_actual == 1) {
-        for (int i = 0; i < filesUsed - 1; ++i) {
-          if (idealPartitions[i] == 1) {
-            std::ifstream fin(tapes[i]);
-            std::ofstream fout(filename, std::ios::trunc);
-            fout << fin.rdbuf();
-            break;
-          }
+  if (total_actual <= 1) {
+    if (total_actual == 1) {
+      for (int i = 0; i < filesUsed - 1; ++i) {
+        if (idealPartitions[i] == 1) {
+          std::ifstream fin(tapes[i]);
+          std::ofstream fout(filename, std::ios::trunc);
+          fout << fin.rdbuf();
+          break;
         }
-      }
-      for (int i = 0; i < filesUsed; ++i)
-        std::remove(tapes[i].c_str());
-      return;
-    }
-
-    while (true) {
-      int mergePasses = idealPartitions[tapeMap[filesUsed - 2]] +
-                        missingPartitions[tapeMap[filesUsed - 2]];
-      if (mergePasses == 0)
-        break;
-
-      executePolyphaseMergePass(tapes, idealPartitions, missingPartitions,
-                                tapeMap, filesUsed, mergePasses);
-
-      // Rotate Tapes
-      int oldEmpty = tapeMap[filesUsed - 2];
-      for (int i = filesUsed - 2; i > 0; --i)
-        tapeMap[i] = tapeMap[i - 1];
-      tapeMap[0] = tapeMap[filesUsed - 1];
-      tapeMap[filesUsed - 1] = oldEmpty;
-
-      int total_runs_left = 0;
-      for (int i = 0; i < filesUsed; ++i)
-        total_runs_left += idealPartitions[i];
-      if (total_runs_left <= 1)
-        break;
-    }
-
-    for (int i = 0; i < filesUsed; ++i) {
-      if (idealPartitions[tapeMap[i]] == 1) {
-        std::ifstream fin(tapes[tapeMap[i]]);
-        std::ofstream fout(filename, std::ios::trunc);
-        fout << fin.rdbuf();
-        break;
       }
     }
     for (int i = 0; i < filesUsed; ++i)
       std::remove(tapes[i].c_str());
+    return;
   }
 
-  // --------- Помощники -----------
-  bool isFileContainsSortedArray(const std::string &fileName) {
-    std::ifstream inFile(fileName);
-    if (!inFile.is_open())
-      return false;
+  while (true) {
+    int mergePasses = idealPartitions[tapeMap[filesUsed - 2]] +
+                      missingPartitions[tapeMap[filesUsed - 2]];
+    if (mergePasses == 0)
+      break;
 
-    int current, previous;
-    if (!(inFile >> previous))
-      return true;
+    executePolyphaseMergePass(tapes, idealPartitions, missingPartitions,
+                              tapeMap, filesUsed, mergePasses);
 
-    while (inFile >> current) {
-      if (current < previous)
-        return false;
-      previous = current;
+    // Rotate Tapes
+    int oldEmpty = tapeMap[filesUsed - 2];
+    for (int i = filesUsed - 2; i > 0; --i)
+      tapeMap[i] = tapeMap[i - 1];
+    tapeMap[0] = tapeMap[filesUsed - 1];
+    tapeMap[filesUsed - 1] = oldEmpty;
+
+    int total_runs_left = 0;
+    for (int i = 0; i < filesUsed; ++i)
+      total_runs_left += idealPartitions[i];
+    if (total_runs_left <= 1)
+      break;
+  }
+
+  for (int i = 0; i < filesUsed; ++i) {
+    if (idealPartitions[tapeMap[i]] == 1) {
+      std::ifstream fin(tapes[tapeMap[i]]);
+      std::ofstream fout(filename, std::ios::trunc);
+      fout << fin.rdbuf();
+      break;
     }
+  }
+  for (int i = 0; i < filesUsed; ++i)
+    std::remove(tapes[i].c_str());
+}
+
+// --------- Помощники -----------
+bool isFileContainsSortedArray(const std::string &fileName) {
+  std::ifstream inFile(fileName);
+  if (!inFile.is_open())
+    return false;
+
+  int current, previous;
+  if (!(inFile >> previous))
     return true;
+
+  while (inFile >> current) {
+    if (current < previous)
+      return false;
+    previous = current;
+  }
+  return true;
+}
+
+double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
+                        MergeMode mode, int filesCount) {
+
+  auto start = std::chrono::steady_clock::now();
+
+  if (algo == SortAlgorithm::BalancedMultiway) {
+    balancedMultiwaySort(fileName, filesCount, mode);
+  } else {
+    polyphaseSort(fileName, filesCount);
   }
 
-  double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
-                          MergeMode mode, int filesCount) {
+  auto stop = std::chrono::steady_clock::now();
 
-    auto start = std::chrono::steady_clock::now();
+  if (!isFileContainsSortedArray(fileName))
+    return -2;
 
-    if (algo == SortAlgorithm::BalancedMultiway) {
-      balancedMultiwaySort(fileName, filesCount, mode);
-    } else {
-      polyphaseSort(fileName, filesCount);
-      polyphaseSort(fileName, filesCount);
-    }
+  return std::chrono::duration<double, std::milli>(stop - start).count();
+}
 
-    auto stop = std::chrono::steady_clock::now();
+// deterministic dataset seed
+unsigned int datasetSeed(size_t n, int lo, int hi) {
+  uint64_t s = 1469598103934665603ull;
+  s ^= n;
+  s *= 1099511628211ull;
+  s ^= static_cast<uint64_t>(lo + 0x9e3779b1);
+  s *= 1099511628211ull;
+  s ^= static_cast<uint64_t>(hi ^ 0x9e3779b1);
+  s *= 1099511628211ull;
+  return static_cast<unsigned int>(s & 0xFFFFFFFFu);
+}
 
-    if (!isFileContainsSortedArray(fileName))
-      return -2;
+void genRandomtoFile(const std::string &fname, const size_t n, const int lo,
+                     const int hi, const unsigned int seed) {
+  std::ofstream os(fname);
+  if (!os)
+    throw std::runtime_error("Failed to open " + fname);
 
-    return std::chrono::duration<double, std::milli>(stop - start).count();
+  std::mt19937_64 rng(seed);
+  std::uniform_int_distribution<int> dist(lo, hi);
+  int randomNumber{};
+  os << n << '\n';
+
+  for (size_t i = 0; i < n; ++i) {
+    randomNumber = dist(rng);
+    os << randomNumber << ((i + 1 == n) ? '\n' : ' ');
   }
+}
 
-  // deterministic dataset seed
-  unsigned int datasetSeed(size_t n, int lo, int hi) {
-    uint64_t s = 1469598103934665603ull;
-    s ^= n;
-    s *= 1099511628211ull;
-    s ^= static_cast<uint64_t>(lo + 0x9e3779b1);
-    s *= 1099511628211ull;
-    s ^= static_cast<uint64_t>(hi ^ 0x9e3779b1);
-    s *= 1099511628211ull;
-    return static_cast<unsigned int>(s & 0xFFFFFFFFu);
-  }
+bool fileExists(const std::string &filename) {
+  std::ifstream file(filename);
+  bool exists = file.good();
+  file.close();
+  return exists;
+}
 
-  void genRandomtoFile(const std::string &fname, const size_t n, const int lo,
-                       const int hi, const unsigned int seed) {
-    std::ofstream os(fname);
-    if (!os)
-      throw std::runtime_error("Failed to open " + fname);
+void copyFile(const std::string &source, const std::string &destination) {
+  std::ifstream src(source, std::ios::binary);
+  std::ofstream dst(destination, std::ios::binary);
 
-    std::mt19937_64 rng(seed);
-    std::uniform_int_distribution<int> dist(lo, hi);
-    int randomNumber{};
-    os << n << '\n';
+  dst << src.rdbuf();
+}
 
-    for (size_t i = 0; i < n; ++i) {
-      randomNumber = dist(rng);
-      os << randomNumber << ((i + 1 == n) ? '\n' : ' ');
-    }
-  }
+int main() {
 
-  bool fileExists(const std::string &filename) {
-    std::ifstream file(filename);
-    bool exists = file.good();
-    file.close();
-    return exists;
-  }
+  std::ios::sync_with_stdio(false);
+  std::cin.tie(nullptr);
 
-  void copyFile(const std::string &source, const std::string &destination) {
-    std::ifstream src(source, std::ios::binary);
-    std::ofstream dst(destination, std::ios::binary);
+  const std::vector<size_t> sizes = {1000u, 10000u, 100000u};
+  const std::vector<std::pair<int, int>> ranges = {
+      {-10, 10}, {-1000, 1000}, {-100000, 100000}};
 
-    dst << src.rdbuf();
-  }
+  std::vector<std::pair<MergeMode, SortAlgorithm>> modes{
+      {MergeMode::Direct, SortAlgorithm::BalancedMultiway},
+      {MergeMode::Natural, SortAlgorithm::BalancedMultiway},
+      {MergeMode::Natural, SortAlgorithm::Polyphase}};
+  constexpr int kFilesUsed = 3;
 
-  int main() {
+  std::ofstream csv_append("timings_External.csv", std::ios::app);
+  csv_append << "Algorithm" << ',' << "Sorting Mode" << ',' << "Array Size"
+             << ',' << "Lowest" << ',' << "Highest"
+             << "Files" << std::fixed << std::setprecision(3)
+             << "First run time" << ',' << "Second run time" << ','
+             << "Third run time" << ',' << "Mean" << "\n";
 
-    std::ios::sync_with_stdio(false);
-    std::cin.tie(nullptr);
+  for (auto [mode, algo] : modes) {
+    std::string s_mode = (mode == MergeMode::Direct) ? "Direct" : "Natural";
+    std::string s_algo =
+        (algo == SortAlgorithm::Polyphase) ? "Polyphase" : "BalancedMultiway";
+    std::cout << "Executing " << s_algo << " " << s_mode << "\n";
 
-    const std::vector<size_t> sizes = {1000u, 10000u, 100000u};
-    const std::vector<std::pair<int, int>> ranges = {
-        {-10, 10}, {-1000, 1000}, {-100000, 100000}};
+    for (size_t n : sizes) {
+      for (auto [lo, hi] : ranges) {
+        // Dataset generation
+        std::string fname = "data_" + std::to_string(n) + "_" +
+                            std::to_string(lo) + "_" + std::to_string(hi) +
+                            ".txt";
 
-    std::vector<std::pair<MergeMode, SortAlgorithm>> modes{
-        {MergeMode::Direct, SortAlgorithm::BalancedMultiway},
-        {MergeMode::Natural, SortAlgorithm::BalancedMultiway},
-        {MergeMode::Natural, SortAlgorithm::Polyphase}};
-    constexpr int kFilesUsed = 3;
+        std::vector<int> data;
+        std::string data_dupe = "dupe.txt";
 
-    std::ofstream csv_append("timings_External.csv", std::ios::app);
-    csv_append << "Algorithm" << ',' << "Sorting Mode" << ',' << "Array Size"
-               << ',' << "Lowest" << ',' << "Highest"
-               << "Files" << std::fixed << std::setprecision(3)
-               << "First run time" << ',' << "Second run time" << ','
-               << "Third run time" << ',' << "Mean" << "\n";
-
-    for (auto [mode, algo] : modes) {
-      std::string s_mode = (mode == MergeMode::Direct) ? "Direct" : "Natural";
-      std::string s_algo =
-          (algo == SortAlgorithm::Polyphase) ? "Polyphase" : "BalancedMultiway";
-      std::cout << "Executing " << s_algo << " " << s_mode << "\n";
-
-      for (size_t n : sizes) {
-        for (auto [lo, hi] : ranges) {
-          // Dataset generation
-          std::string fname = "data_" + std::to_string(n) + "_" +
-                              std::to_string(lo) + "_" + std::to_string(hi) +
-                              ".txt";
-
-          std::vector<int> data;
-          std::string data_dupe = "dupe.txt";
-
-          if (!fileExists(fname)) {
-            unsigned int seed = datasetSeed(n, lo, hi);
-            std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
-                      << hi << "] seed=" << seed << " ...\n";
-            genRandomtoFile(fname, n, lo, hi, seed);
-          } else {
-            std::cout << "Found dataset n=" << n << " range=[" << lo << ','
-                      << hi << "]\n";
-          }
-
-          // Duplicate dataset
-          std::vector<double> runs;
-          runs.reserve(3);
-
-          for (int r = 0; r < 3; ++r) {
-            copyFile(fname, data_dupe);
-
-            double tms = sortFilewithTime(data_dupe, algo, mode, kFilesUsed);
-            if (tms == -2) {
-              std::cerr << "ERROR: " << s_algo << " " << s_mode
-                        << " produced unsorted result"
-                        << "\n";
-              std::terminate();
-            } else if (tms == -1) {
-              std::cerr << "ERROR: " << s_algo << " " << s_mode
-                        << " unable to create file" << "\n";
-              std::terminate();
-            }
-
-            runs.push_back(tms);
-            std::cout << std::fixed << std::setprecision(2) << tms << " ms"
-                      << (r < 2 ? ", " : "");
-          }
-
-          double mean = (runs[0] + runs[1] + runs[2]) / 3.0;
-          std::cout << "  mean=" << std::fixed << std::setprecision(2) << mean
-                    << " ms\n";
-
-          std::ofstream csv_append("timings_External.csv", std::ios::app);
-          csv_append << s_algo << ',' << s_mode << ',' << n << ',' << lo << ','
-                     << hi << "," << kFilesUsed << "," << std::fixed
-                     << std::setprecision(3) << runs[0] << ',' << runs[1] << ','
-                     << runs[2] << ',' << mean << "\n";
-          csv_append.close();
+        if (!fileExists(fname)) {
+          unsigned int seed = datasetSeed(n, lo, hi);
+          std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
+                    << hi << "] seed=" << seed << " ...\n";
+          genRandomtoFile(fname, n, lo, hi, seed);
+        } else {
+          std::cout << "Found dataset n=" << n << " range=[" << lo << ',' << hi
+                    << "]\n";
         }
+
+        // Duplicate dataset
+        std::vector<double> runs;
+        runs.reserve(3);
+
+        for (int r = 0; r < 3; ++r) {
+          copyFile(fname, data_dupe);
+
+          double tms = sortFilewithTime(data_dupe, algo, mode, kFilesUsed);
+          if (tms == -2) {
+            std::cerr << "ERROR: " << s_algo << " " << s_mode
+                      << " produced unsorted result"
+                      << "\n";
+            std::terminate();
+          } else if (tms == -1) {
+            std::cerr << "ERROR: " << s_algo << " " << s_mode
+                      << " unable to create file" << "\n";
+            std::terminate();
+          }
+
+          runs.push_back(tms);
+          std::cout << std::fixed << std::setprecision(2) << tms << " ms"
+                    << (r < 2 ? ", " : "");
+        }
+
+        double mean = (runs[0] + runs[1] + runs[2]) / 3.0;
+        std::cout << "  mean=" << std::fixed << std::setprecision(2) << mean
+                  << " ms\n";
+
+        std::ofstream csv_append("timings_External.csv", std::ios::app);
+        csv_append << s_algo << ',' << s_mode << ',' << n << ',' << lo << ','
+                   << hi << "," << kFilesUsed << "," << std::fixed
+                   << std::setprecision(3) << runs[0] << ',' << runs[1] << ','
+                   << runs[2] << ',' << mean << "\n";
+        csv_append.close();
       }
     }
-
-    std::cout
-        << "All experiments complete. See timings_count.csv and data_*.txt "
-           "files.\n";
-    return 0;
   }
+
+  std::cout << "All experiments complete. See timings_count.csv and data_*.txt "
+               "files.\n";
+  return 0;
+}
