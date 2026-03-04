@@ -17,49 +17,16 @@ enum class MergeMode {
 enum class SortAlgorithm { BalancedMultiway, Polyphase };
 
 // -----------------------------------------------------------------------------
-// Utilities
-// -----------------------------------------------------------------------------
-
-bool createFileFromVector(const std::vector<int> &vec,
-                          const std::string &fileName) {
-  std::ofstream outFile(fileName, std::ios::trunc);
-  if (!outFile.is_open())
-    return false;
-
-  int vecsize = vec.size();
-  for (int i = 0; i < vecsize; ++i) {
-    outFile << vec[i] << (i == vecsize - 1 ? "" : " ");
-  }
-  return true;
-}
-
-bool isFileContainsSortedArray(const std::string &fileName) {
-  std::ifstream inFile(fileName);
-  if (!inFile.is_open())
-    return false;
-
-  int current, previous;
-  if (!(inFile >> previous))
-    return true;
-
-  while (inFile >> current) {
-    if (current < previous)
-      return false;
-    previous = current;
-  }
-  return true;
-}
-
-// -----------------------------------------------------------------------------
 // Balanced Multiway Sort Components
 // -----------------------------------------------------------------------------
 
 int distributeMultiway(const std::string &filename,
-                       const std::vector<std::string> &outNames, int n,
-                       MergeMode mode, int p) {
+                       const std::vector<std::string> &outNames,
+                       const int filesUsed, const MergeMode mode,
+                       const int directParitionSize) {
   std::ifstream inMain(filename);
-  std::vector<std::ofstream> outFiles(n);
-  for (int i = 0; i < n; ++i)
+  std::vector<std::ofstream> outFiles(filesUsed);
+  for (int i = 0; i < filesUsed; ++i)
     outFiles[i].open(outNames[i], std::ios::trunc);
 
   int current;
@@ -74,13 +41,13 @@ int distributeMultiway(const std::string &filename,
 
   while (inMain >> current) {
     bool endOfRun = false;
-    if (mode == MergeMode::Direct && countInRun >= p)
+    if (mode == MergeMode::Direct && countInRun >= directParitionSize)
       endOfRun = true;
     if (mode == MergeMode::Natural && current < prev)
       endOfRun = true;
 
     if (endOfRun) {
-      fileIdx = (fileIdx + 1) % n;
+      fileIdx = (fileIdx + 1) % filesUsed;
       countInRun = 0;
       totalRuns++;
     }
@@ -89,18 +56,19 @@ int distributeMultiway(const std::string &filename,
     prev = current;
   }
 
-  for (int i = 0; i < n; ++i)
+  for (int i = 0; i < filesUsed; ++i)
     outFiles[i].close();
   return totalRuns;
 }
 
 int executeMultiwayMergePass(const std::vector<std::string> &inNames,
-                             const std::vector<std::string> &outNames, int n,
-                             MergeMode mode, int p) {
-  std::vector<std::ifstream> inStreams(n);
-  std::vector<std::ofstream> outStreams(n);
+                             const std::vector<std::string> &outNames,
+                             const int filesUsed, const MergeMode mode,
+                             const int directParitionSize) {
+  std::vector<std::ifstream> inStreams(filesUsed);
+  std::vector<std::ofstream> outStreams(filesUsed);
 
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < filesUsed; ++i) {
     inStreams[i].open(inNames[i]);
     outStreams[i].open(outNames[i], std::ios::trunc);
   }
@@ -109,12 +77,14 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
   int activeFilesCount = 0;
   int totalRunsProduced = 0;
 
-  std::vector<int> segmentNumbers(n);
-  std::vector<bool> activeStreams(n, false);
-  std::vector<int> currentRunCount(n, 0);
+  // Массив segmentNumbers сохраняет самое первое значение в файле
+  // это для того чтобы сравнить и выбирать
+  std::vector<int> segmentNumbers(filesUsed);
+  std::vector<bool> activeStreams(filesUsed, false);
+  std::vector<int> currentRunCount(filesUsed, 0);
 
   // Initial read
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < filesUsed; ++i) {
     if (inStreams[i] >> segmentNumbers[i]) {
       activeStreams[i] = true;
       currentRunCount[i] = 1;
@@ -124,14 +94,14 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
 
   while (activeFilesCount > 0) {
     int activeRunsCount = activeFilesCount;
-    std::vector<int> runPrev(n, std::numeric_limits<int>::min());
+    std::vector<int> runPrev(filesUsed, std::numeric_limits<int>::min());
     totalRunsProduced++;
 
     while (activeRunsCount > 0) {
       int minIndex = -1;
       int minValue = std::numeric_limits<int>::max();
 
-      for (int i = 0; i < n; ++i) {
+      for (int i = 0; i < filesUsed; ++i) {
         if (activeStreams[i] && segmentNumbers[i] < minValue) {
           minValue = segmentNumbers[i];
           minIndex = i;
@@ -148,7 +118,8 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
         currentRunCount[minIndex]++;
         bool runEnded = false;
 
-        if (mode == MergeMode::Direct && currentRunCount[minIndex] > p)
+        if (mode == MergeMode::Direct &&
+            currentRunCount[minIndex] > directParitionSize)
           runEnded = true;
         if (mode == MergeMode::Natural &&
             segmentNumbers[minIndex] < runPrev[minIndex])
@@ -167,15 +138,15 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
     }
 
     // Reactivate streams for the next run distribution
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < filesUsed; ++i) {
       if (!inStreams[i].eof() && !inStreams[i].fail()) {
         activeStreams[i] = true;
       }
     }
-    outIdx = (outIdx + 1) % n;
+    outIdx = (outIdx + 1) % filesUsed;
   }
 
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < filesUsed; ++i) {
     inStreams[i].close();
     outStreams[i].close();
   }
@@ -183,9 +154,10 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
   return totalRunsProduced;
 }
 
-void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
-  std::vector<std::string> f_names(n), g_names(n);
-  for (int i = 0; i < n; ++i) {
+void balancedMultiwaySort(const std::string &filename, const int filesUsed,
+                          const MergeMode mode) {
+  std::vector<std::string> f_names(filesUsed), g_names(filesUsed);
+  for (int i = 0; i < filesUsed; ++i) {
     f_names[i] = "f_" + std::to_string(i) + ".txt";
     g_names[i] = "g_" + std::to_string(i) + ".txt";
   }
@@ -194,9 +166,9 @@ void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
   bool isSorted = false;
   bool directionFtoG = true;
 
-  int initialRuns = distributeMultiway(filename, f_names, n, mode, p);
+  int initialRuns = distributeMultiway(filename, f_names, filesUsed, mode, p);
   if (initialRuns <= 1) {
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < filesUsed; ++i) {
       std::remove(f_names[i].c_str());
       std::remove(g_names[i].c_str());
     }
@@ -207,10 +179,11 @@ void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
     const auto &inNames = directionFtoG ? f_names : g_names;
     const auto &outNames = directionFtoG ? g_names : f_names;
 
-    int runsThisPass = executeMultiwayMergePass(inNames, outNames, n, mode, p);
+    int runsThisPass =
+        executeMultiwayMergePass(inNames, outNames, filesUsed, mode, p);
 
     if (mode == MergeMode::Direct)
-      p *= n;
+      p *= filesUsed;
     directionFtoG = !directionFtoG;
 
     if (runsThisPass <= 1)
@@ -222,7 +195,7 @@ void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
   std::ofstream resOut(filename, std::ios::trunc);
   resOut << resIn.rdbuf();
 
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < filesUsed; ++i) {
     std::remove(f_names[i].c_str());
     std::remove(g_names[i].c_str());
   }
@@ -235,12 +208,14 @@ void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
 // Phase 1: Fibonnaci distribution across K-1 tapes
 int distributePolyphase(const std::string &filename,
                         const std::vector<std::string> &tapes,
-                        std::vector<int> &a, std::vector<int> &d, int K) {
-  std::vector<int> t(K - 1, 0);
+                        std::vector<int> &idealPartition,
+                        std::vector<int> &missingPartition,
+                        const int filesUsed) {
+  std::vector<int> t(filesUsed - 1, 0);
   t[0] = 1;
 
-  std::vector<std::unique_ptr<std::ofstream>> outs(K - 1);
-  for (int i = 0; i < K - 1; ++i)
+  std::vector<std::unique_ptr<std::ofstream>> outs(filesUsed - 1);
+  for (int i = 0; i < filesUsed - 1; ++i)
     outs[i] = std::make_unique<std::ofstream>(tapes[i], std::ios::trunc);
 
   std::ifstream source(filename);
@@ -261,15 +236,15 @@ int distributePolyphase(const std::string &filename,
       *outs[tapeIdx] << current << " ";
       prev = current;
     }
-    a[tapeIdx]++;
+    idealPartition[tapeIdx]++;
 
-    if (a[tapeIdx] == t[tapeIdx]) {
+    if (idealPartition[tapeIdx] == t[tapeIdx]) {
       tapeIdx++;
-      if (tapeIdx == K - 1) {
+      if (tapeIdx == filesUsed - 1) {
         int t0 = t[0];
-        for (int i = 0; i < K - 2; ++i)
+        for (int i = 0; i < filesUsed - 2; ++i)
           t[i] = t0 + t[i + 1];
-        t[K - 2] = t0;
+        t[filesUsed - 2] = t0;
         tapeIdx = 0;
       }
     }
@@ -277,53 +252,54 @@ int distributePolyphase(const std::string &filename,
   }
 
   int total_actual = 0;
-  for (int i = 0; i < K - 1; ++i) {
-    d[i] = t[i] - a[i];
-    total_actual += a[i];
+  for (int i = 0; i < filesUsed - 1; ++i) {
+    missingPartition[i] = t[i] - idealPartition[i];
+    total_actual += idealPartition[i];
   }
   return total_actual;
 }
 
 // Phase 2: Single polyphase merge step into the designated empty tape
 void executePolyphaseMergePass(const std::vector<std::string> &tapes,
-                               std::vector<int> &a, std::vector<int> &d,
-                               std::vector<int> &tapeMap, int K,
+                               std::vector<int> &idealPartition,
+                               std::vector<int> &missingPartition,
+                               std::vector<int> &tapeMap, int filesUsed,
                                int mergePasses) {
-  int outIdx = tapeMap[K - 1];
+  int outIdx = tapeMap[filesUsed - 1];
   std::ofstream outStream(tapes[outIdx], std::ios::trunc);
 
-  std::vector<std::unique_ptr<std::ifstream>> inStreams(K - 1);
-  std::vector<int> currentVals(K - 1);
-  std::vector<bool> active(K - 1, false);
+  std::vector<std::unique_ptr<std::ifstream>> inStreams(filesUsed - 1);
+  std::vector<int> currentVals(filesUsed - 1);
+  std::vector<bool> active(filesUsed - 1, false);
 
-  for (int i = 0; i < K - 1; ++i) {
+  for (int i = 0; i < filesUsed - 1; ++i) {
     inStreams[i] = std::make_unique<std::ifstream>(tapes[tapeMap[i]]);
   }
 
   for (int p = 0; p < mergePasses; ++p) {
     bool allDummy = true;
-    for (int i = 0; i < K - 1; ++i) {
-      if (d[tapeMap[i]] > 0) {
-        d[tapeMap[i]]--;
+    for (int i = 0; i < filesUsed - 1; ++i) {
+      if (missingPartition[tapeMap[i]] > 0) {
+        missingPartition[tapeMap[i]]--;
       } else {
         allDummy = false;
-        a[tapeMap[i]]--;
+        idealPartition[tapeMap[i]]--;
         if (*inStreams[i] >> currentVals[i])
           active[i] = true;
       }
     }
 
     if (allDummy) {
-      d[outIdx]++;
+      missingPartition[outIdx]++;
     } else {
-      std::vector<int> prevVals(K - 1, std::numeric_limits<int>::min());
+      std::vector<int> prevVals(filesUsed - 1, std::numeric_limits<int>::min());
       bool runsActive = true;
 
       while (runsActive) {
         int minIdx = -1;
         int minVal = std::numeric_limits<int>::max();
 
-        for (int i = 0; i < K - 1; ++i) {
+        for (int i = 0; i < filesUsed - 1; ++i) {
           if (active[i] && currentVals[i] < minVal) {
             minVal = currentVals[i];
             minIdx = i;
@@ -344,36 +320,35 @@ void executePolyphaseMergePass(const std::vector<std::string> &tapes,
         }
 
         runsActive = false;
-        for (int i = 0; i < K - 1; ++i)
+        for (int i = 0; i < filesUsed - 1; ++i)
           if (active[i])
             runsActive = true;
       }
-      a[outIdx]++;
+      idealPartition[outIdx]++;
     }
   }
 }
 
-void polyphaseSort(const std::string &filename, MergeMode mode,
-                   int auxFilesCount = 3) {
-  mode = MergeMode::Natural;
+void polyphaseSort(const std::string &filename, int auxFilesCount = 3) {
 
-  int K = auxFilesCount + 1;
-  std::vector<std::string> tapes(K);
-  for (int i = 0; i < K; ++i)
+  int filesUsed = auxFilesCount + 1;
+  std::vector<std::string> tapes(filesUsed);
+  for (int i = 0; i < filesUsed; ++i)
     tapes[i] = "poly_tape_" + std::to_string(i) + ".txt";
 
-  std::vector<int> a(K, 0);
-  std::vector<int> d(K, 0);
-  std::vector<int> tapeMap(K);
-  for (int i = 0; i < K; ++i)
+  std::vector<int> idealPartitions(filesUsed, 0);
+  std::vector<int> missingPartitions(filesUsed, 0);
+  std::vector<int> tapeMap(filesUsed);
+  for (int i = 0; i < filesUsed; ++i)
     tapeMap[i] = i;
 
-  int total_actual = distributePolyphase(filename, tapes, a, d, K);
+  int total_actual = distributePolyphase(filename, tapes, idealPartitions,
+                                         missingPartitions, filesUsed);
 
   if (total_actual <= 1) {
     if (total_actual == 1) {
-      for (int i = 0; i < K - 1; ++i) {
-        if (a[i] == 1) {
+      for (int i = 0; i < filesUsed - 1; ++i) {
+        if (idealPartitions[i] == 1) {
           std::ifstream fin(tapes[i]);
           std::ofstream fout(filename, std::ios::trunc);
           fout << fin.rdbuf();
@@ -381,45 +356,63 @@ void polyphaseSort(const std::string &filename, MergeMode mode,
         }
       }
     }
-    for (int i = 0; i < K; ++i)
+    for (int i = 0; i < filesUsed; ++i)
       std::remove(tapes[i].c_str());
     return;
   }
 
   while (true) {
-    int mergePasses = a[tapeMap[K - 2]] + d[tapeMap[K - 2]];
+    int mergePasses = idealPartitions[tapeMap[filesUsed - 2]] +
+                      missingPartitions[tapeMap[filesUsed - 2]];
     if (mergePasses == 0)
       break;
 
-    executePolyphaseMergePass(tapes, a, d, tapeMap, K, mergePasses);
+    executePolyphaseMergePass(tapes, idealPartitions, missingPartitions,
+                              tapeMap, filesUsed, mergePasses);
 
     // Rotate Tapes
-    int oldEmpty = tapeMap[K - 2];
-    for (int i = K - 2; i > 0; --i)
+    int oldEmpty = tapeMap[filesUsed - 2];
+    for (int i = filesUsed - 2; i > 0; --i)
       tapeMap[i] = tapeMap[i - 1];
-    tapeMap[0] = tapeMap[K - 1];
-    tapeMap[K - 1] = oldEmpty;
+    tapeMap[0] = tapeMap[filesUsed - 1];
+    tapeMap[filesUsed - 1] = oldEmpty;
 
     int total_runs_left = 0;
-    for (int i = 0; i < K; ++i)
-      total_runs_left += a[i];
+    for (int i = 0; i < filesUsed; ++i)
+      total_runs_left += idealPartitions[i];
     if (total_runs_left <= 1)
       break;
   }
 
-  for (int i = 0; i < K; ++i) {
-    if (a[tapeMap[i]] == 1) {
+  for (int i = 0; i < filesUsed; ++i) {
+    if (idealPartitions[tapeMap[i]] == 1) {
       std::ifstream fin(tapes[tapeMap[i]]);
       std::ofstream fout(filename, std::ios::trunc);
       fout << fin.rdbuf();
       break;
     }
   }
-  for (int i = 0; i < K; ++i)
+  for (int i = 0; i < filesUsed; ++i)
     std::remove(tapes[i].c_str());
 }
 
 // --------- Помощники -----------
+bool isFileContainsSortedArray(const std::string &fileName) {
+  std::ifstream inFile(fileName);
+  if (!inFile.is_open())
+    return false;
+
+  int current, previous;
+  if (!(inFile >> previous))
+    return true;
+
+  while (inFile >> current) {
+    if (current < previous)
+      return false;
+    previous = current;
+  }
+  return true;
+}
 
 double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
                         MergeMode mode, int filesCount) {
@@ -429,7 +422,7 @@ double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
   if (algo == SortAlgorithm::BalancedMultiway) {
     balancedMultiwaySort(fileName, filesCount, mode);
   } else {
-    polyphaseSort(fileName, mode, filesCount);
+    polyphaseSort(fileName, filesCount);
   }
 
   auto stop = std::chrono::steady_clock::now();
@@ -452,23 +445,20 @@ unsigned int datasetSeed(size_t n, int lo, int hi) {
   return static_cast<unsigned int>(s & 0xFFFFFFFFu);
 }
 
-std::vector<int> genRandomVector(size_t n, int lo, int hi, unsigned int seed) {
-  std::vector<int> v;
-  v.reserve(n);
-  std::mt19937_64 rng(seed);
-  std::uniform_int_distribution<int> dist(lo, hi);
-  for (size_t i = 0; i < n; ++i)
-    v.push_back(dist(rng));
-  return v;
-}
-
-void writeVectorToTxt(const std::string &fname, const std::vector<int> &v) {
+void genRandomtoFile(const std::string &fname, const size_t n, const int lo,
+                     const int hi, const unsigned int seed) {
   std::ofstream os(fname);
   if (!os)
     throw std::runtime_error("Failed to open " + fname);
-  os << v.size() << '\n';
-  for (size_t i = 0; i < v.size(); ++i) {
-    os << v[i] << (i + 1 == v.size() ? '\n' : ' ');
+
+  std::mt19937_64 rng(seed);
+  std::uniform_int_distribution<int> dist(lo, hi);
+  int randomNumber{};
+  os << n << '\n';
+
+  for (size_t i = 0; i < n; ++i) {
+    randomNumber = dist(rng);
+    os << randomNumber << ((i + 1 == n) ? '\n' : ' ');
   }
 }
 
@@ -528,8 +518,7 @@ int main() {
           unsigned int seed = datasetSeed(n, lo, hi);
           std::cout << "Generating dataset n=" << n << " range=[" << lo << ','
                     << hi << "] seed=" << seed << " ...\n";
-          std::vector<int> data = genRandomVector(n, lo, hi, seed);
-          writeVectorToTxt(fname, data);
+          genRandomtoFile(fname, n, lo, hi, seed);
         } else {
           std::cout << "Found dataset n=" << n << " range=[" << lo << ',' << hi
                     << "]\n";

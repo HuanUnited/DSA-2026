@@ -2,6 +2,9 @@
 *.d
 build
 
+# Output
+output
+
 # Compiled Object files
 *.slo
 *.lo
