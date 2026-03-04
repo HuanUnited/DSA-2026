@@ -72,6 +72,9 @@ int distributeMultiway(const std::string &filename,
   int prev = current;
   int totalRuns = 1;
 
+  // For Direct Merge, it counts until p
+  // For Natural Merge, it counts until the current value < prev (it should be
+  // ascending)
   while (inMain >> current) {
     bool endOfRun = false;
     if (mode == MergeMode::Direct && countInRun >= p)
@@ -113,7 +116,8 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
   std::vector<bool> activeStreams(n, false);
   std::vector<int> currentRunCount(n, 0);
 
-  // Initial read
+  // Initial read - priming the input stream by extracting the first integer
+  // from the files
   for (int i = 0; i < n; ++i) {
     if (inStreams[i] >> segmentNumbers[i]) {
       activeStreams[i] = true;
@@ -131,6 +135,7 @@ int executeMultiwayMergePass(const std::vector<std::string> &inNames,
       int minIndex = -1;
       int minValue = std::numeric_limits<int>::max();
 
+      // Track the previous values to identify the natural run boundaries.
       for (int i = 0; i < n; ++i) {
         if (activeStreams[i] && segmentNumbers[i] < minValue) {
           minValue = segmentNumbers[i];
@@ -231,6 +236,38 @@ void balancedMultiwaySort(const std::string &filename, int n, MergeMode mode) {
 // -----------------------------------------------------------------------------
 // Polyphase Sort Components
 // -----------------------------------------------------------------------------
+// --- Помощники для многофазной
+
+void rotateTapes(std::vector<int> &tapeMap, int K) {
+  int oldEmpty = tapeMap[K - 2];
+  for (int i{K - 2}; i > 0; i--) {
+    tapeMap[i] = tapeMap[i - 1];
+  }
+  tapeMap[0] = tapeMap[K - 1];
+  tapeMap[K - 1] = oldEmpty;
+}
+
+int initializeDummyRuns(const std::vector<int> &t, const std::vector<int> &a,
+                        std::vector<int> d, int K) {
+  int total_actual = 0;
+  for (int i{}; i < K; i++) {
+    d[i] = t[i] - a[i];
+    total_actual += a[i];
+  }
+  return total_actual;
+}
+
+void advanceTapeAndUpdateFibonacci(int &tapeidx, std::vector<int> &t, int K) {
+  tapeidx++;
+  if (tapeidx == K - 1) {
+    int t0 = t[0];
+    for (int i{}; i < K - 2; ++i) {
+      t[i] = t0 + t[i + 1];
+    }
+    t[K - 2] = t0;
+    tapeidx = 0;
+  }
+}
 
 // Phase 1: Fibonnaci distribution across K-1 tapes
 int distributePolyphase(const std::string &filename,
@@ -264,24 +301,12 @@ int distributePolyphase(const std::string &filename,
     a[tapeIdx]++;
 
     if (a[tapeIdx] == t[tapeIdx]) {
-      tapeIdx++;
-      if (tapeIdx == K - 1) {
-        int t0 = t[0];
-        for (int i = 0; i < K - 2; ++i)
-          t[i] = t0 + t[i + 1];
-        t[K - 2] = t0;
-        tapeIdx = 0;
-      }
+      advanceTapeAndUpdateFibonacci(tapeIdx, t, K);
     }
     hasData = !runContinues;
   }
 
-  int total_actual = 0;
-  for (int i = 0; i < K - 1; ++i) {
-    d[i] = t[i] - a[i];
-    total_actual += a[i];
-  }
-  return total_actual;
+  return initializeDummyRuns(t, a, d, K);
 }
 
 // Phase 2: Single polyphase merge step into the designated empty tape
@@ -353,9 +378,7 @@ void executePolyphaseMergePass(const std::vector<std::string> &tapes,
   }
 }
 
-void polyphaseSort(const std::string &filename, MergeMode mode,
-                   int auxFilesCount = 3) {
-  mode = MergeMode::Natural;
+void polyphaseSort(const std::string &filename, int auxFilesCount = 3) {
 
   int K = auxFilesCount + 1;
   std::vector<std::string> tapes(K);
@@ -394,11 +417,7 @@ void polyphaseSort(const std::string &filename, MergeMode mode,
     executePolyphaseMergePass(tapes, a, d, tapeMap, K, mergePasses);
 
     // Rotate Tapes
-    int oldEmpty = tapeMap[K - 2];
-    for (int i = K - 2; i > 0; --i)
-      tapeMap[i] = tapeMap[i - 1];
-    tapeMap[0] = tapeMap[K - 1];
-    tapeMap[K - 1] = oldEmpty;
+    rotateTapes(tapeMap, K);
 
     int total_runs_left = 0;
     for (int i = 0; i < K; ++i)
@@ -429,7 +448,7 @@ double sortFilewithTime(const std::string &fileName, SortAlgorithm algo,
   if (algo == SortAlgorithm::BalancedMultiway) {
     balancedMultiwaySort(fileName, filesCount, mode);
   } else {
-    polyphaseSort(fileName, mode, filesCount);
+    polyphaseSort(fileName, filesCount);
   }
 
   auto stop = std::chrono::steady_clock::now();
