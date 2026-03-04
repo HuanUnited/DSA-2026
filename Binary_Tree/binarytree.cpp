@@ -104,12 +104,15 @@ bool BinaryTree::_isLeaf(const TreeNode *node) const {
 }
 
 BinaryTree::TreeNode *BinaryTree::_findLeaf(TreeNode *node) {
-  if (!node)           return nullptr;   // guard: never recurse into nullptr
-  if (_isLeaf(node))   return node;
+  if (!node)
+    return nullptr; // guard: never recurse into nullptr
+  if (_isLeaf(node))
+    return node;
   // Try left first, then right; whichever finds a leaf first wins
   TreeNode *found = _findLeaf(node->left());
-  if (found)           return found;
-  return               _findLeaf(node->right());
+  if (found)
+    return found;
+  return _findLeaf(node->right());
 }
 
 BinaryTree::TreeNode *BinaryTree::_findParent(TreeNode *root,
