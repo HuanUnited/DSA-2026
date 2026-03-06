@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
@@ -5,6 +6,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <queue>
 #include <random>
 #include <string>
 #include <vector>
@@ -204,196 +206,198 @@ void balancedMultiwaySort(const std::string &filename, const int filesUsed,
 // -----------------------------------------------------------------------------
 // Polyphase Sort Components
 // -----------------------------------------------------------------------------
+constexpr int32_t SENTINEL = INT32_MIN;
 
-// Phase 1: Fibonnaci distribution across K-1 tapes
-int distributePolyphase(const std::string &filename,
-                        const std::vector<std::string> &tapes,
-                        std::vector<int> &idealPartition,
-                        std::vector<int> &missingPartition,
-                        const int filesUsed) {
-  std::vector<int> t(filesUsed - 1, 0);
-  t[0] = 1;
+void distributePolyphase(const std::string &filename,
+                         std::vector<std::unique_ptr<std::fstream>> &files,
+                         std::vector<int> &ip, std::vector<int> &ms,
+                         int &levels) {
+  int n = files.size();
+  for (int k = 0; k < n - 1; ++k) {
+    ip[k] = 1;
+    ms[k] = 1;
+  }
+  ip[n - 1] = 0;
+  ms[n - 1] = 0;
 
-  std::vector<std::unique_ptr<std::ofstream>> outs(filesUsed - 1);
-  for (int i = 0; i < filesUsed - 1; ++i)
-    outs[i] = std::make_unique<std::ofstream>(tapes[i], std::ios::trunc);
+  levels = 1;
+  int i = 0;
 
   std::ifstream source(filename);
-  int current;
-  bool hasData = static_cast<bool>(source >> current);
-  int tapeIdx = 0;
+  int32_t current;
 
+  if (!(source >> current))
+    return;
+
+  bool hasData = true;
   while (hasData) {
-    *outs[tapeIdx] << current << " ";
-    int prev = current;
-    bool runContinues = true;
+    *files[i] << current << " ";
+    int32_t prev = current;
+    bool runContinues = false;
 
     while (source >> current) {
       if (current < prev) {
-        runContinues = false;
+        runContinues = true;
         break;
       }
-      *outs[tapeIdx] << current << " ";
+      *files[i] << current << " ";
       prev = current;
     }
-    idealPartition[tapeIdx]++;
 
-    if (idealPartition[tapeIdx] == t[tapeIdx]) {
-      tapeIdx++;
-      if (tapeIdx == filesUsed - 1) {
-        int t0 = t[0];
-        for (int i = 0; i < filesUsed - 2; ++i)
-          t[i] = t0 + t[i + 1];
-        t[filesUsed - 2] = t0;
-        tapeIdx = 0;
+    *files[i] << SENTINEL << " ";
+    ms[i]--;
+
+    if (i < n - 2 && ms[i] < ms[i + 1]) {
+      i++;
+    } else if (ms[i] == 0) {
+      levels++;
+      int ip0 = ip[0];
+      i = 0;
+      for (int k = 0; k < n - 1; ++k) {
+        ms[k] = ip[k + 1] - ip[k] + ip0;
+        ip[k] = ip[k + 1] + ip0;
       }
-    }
-    hasData = !runContinues;
-  }
-
-  int total_actual = 0;
-  for (int i = 0; i < filesUsed - 1; ++i) {
-    missingPartition[i] = t[i] - idealPartition[i];
-    total_actual += idealPartition[i];
-  }
-  return total_actual;
-}
-
-// Phase 2: Single polyphase merge step into the designated empty tape
-void executePolyphaseMergePass(const std::vector<std::string> &tapes,
-                               std::vector<int> &idealPartition,
-                               std::vector<int> &missingPartition,
-                               std::vector<int> &tapeMap, int filesUsed,
-                               int mergePasses) {
-  int outIdx = tapeMap[filesUsed - 1];
-  std::ofstream outStream(tapes[outIdx], std::ios::trunc);
-
-  std::vector<std::unique_ptr<std::ifstream>> inStreams(filesUsed - 1);
-  std::vector<int> currentVals(filesUsed - 1);
-  std::vector<bool> active(filesUsed - 1, false);
-
-  for (int i = 0; i < filesUsed - 1; ++i) {
-    inStreams[i] = std::make_unique<std::ifstream>(tapes[tapeMap[i]]);
-  }
-
-  for (int p = 0; p < mergePasses; ++p) {
-    bool allDummy = true;
-    for (int i = 0; i < filesUsed - 1; ++i) {
-      if (missingPartition[tapeMap[i]] > 0) {
-        missingPartition[tapeMap[i]]--;
-      } else {
-        allDummy = false;
-        idealPartition[tapeMap[i]]--;
-        if (*inStreams[i] >> currentVals[i])
-          active[i] = true;
-      }
-    }
-
-    if (allDummy) {
-      missingPartition[outIdx]++;
     } else {
-      std::vector<int> prevVals(filesUsed - 1, std::numeric_limits<int>::min());
-      bool runsActive = true;
-
-      while (runsActive) {
-        int minIdx = -1;
-        int minVal = std::numeric_limits<int>::max();
-
-        for (int i = 0; i < filesUsed - 1; ++i) {
-          if (active[i] && currentVals[i] < minVal) {
-            minVal = currentVals[i];
-            minIdx = i;
-          }
-        }
-
-        if (minIdx == -1)
-          break;
-
-        outStream << minVal << " ";
-        prevVals[minIdx] = minVal;
-
-        if (*inStreams[minIdx] >> currentVals[minIdx]) {
-          if (currentVals[minIdx] < prevVals[minIdx])
-            active[minIdx] = false;
-        } else {
-          active[minIdx] = false;
-        }
-
-        runsActive = false;
-        for (int i = 0; i < filesUsed - 1; ++i)
-          if (active[i])
-            runsActive = true;
-      }
-      idealPartition[outIdx]++;
+      i = 0;
     }
+
+    hasData = runContinues;
   }
 }
 
 void polyphaseSort(const std::string &filename, int auxFilesCount = 3) {
+  int n = auxFilesCount + 1;
+  std::vector<std::string> fileNames(n);
+  std::vector<std::unique_ptr<std::fstream>> files(n);
 
-  int filesUsed = auxFilesCount + 1;
-  std::vector<std::string> tapes(filesUsed);
-  for (int i = 0; i < filesUsed; ++i)
-    tapes[i] = "poly_tape_" + std::to_string(i) + ".txt";
+  for (int i = 0; i < n; ++i) {
+    fileNames[i] = "poly_tape_" + std::to_string(i) + ".txt";
+    files[i] = std::make_unique<std::fstream>(fileNames[i],
+                                              std::ios::out | std::ios::trunc);
+  }
 
-  std::vector<int> idealPartitions(filesUsed, 0);
-  std::vector<int> missingPartitions(filesUsed, 0);
-  std::vector<int> tapeMap(filesUsed);
-  for (int i = 0; i < filesUsed; ++i)
-    tapeMap[i] = i;
+  std::vector<int> ip(n, 0);
+  std::vector<int> ms(n, 0);
+  int L = 0;
 
-  int total_actual = distributePolyphase(filename, tapes, idealPartitions,
-                                         missingPartitions, filesUsed);
+  distributePolyphase(filename, files, ip, ms, L);
 
-  if (total_actual <= 1) {
-    if (total_actual == 1) {
-      for (int i = 0; i < filesUsed - 1; ++i) {
-        if (idealPartitions[i] == 1) {
-          std::ifstream fin(tapes[i]);
-          std::ofstream fout(filename, std::ios::trunc);
-          fout << fin.rdbuf();
-          break;
-        }
-      }
-    }
-    for (int i = 0; i < filesUsed; ++i)
-      std::remove(tapes[i].c_str());
+  if (L <= 1)
     return;
+
+  for (int i = 0; i < n - 1; ++i) {
+    files[i]->close();
+    files[i]->open(fileNames[i], std::ios::in);
+  }
+  files[n - 1]->close();
+  files[n - 1]->open(fileNames[n - 1], std::ios::out | std::ios::trunc);
+
+  std::vector<int32_t> currentVals(n - 1, SENTINEL);
+  std::vector<bool> active(n - 1, false);
+
+  while (L > 0) {
+    while (ip[n - 2] > 0) {
+      bool allDummy = true;
+      for (int i = 0; i < n - 1; ++i) {
+        if (ms[i] == 0)
+          allDummy = false;
+      }
+
+      if (allDummy) {
+        for (int i = 0; i < n - 1; ++i)
+          ms[i]--;
+        ms[n - 1]++;
+      } else {
+        for (int i = 0; i < n - 1; ++i) {
+          active[i] = false;
+          if (ms[i] > 0) {
+            ms[i]--;
+          } else {
+            *files[i] >> currentVals[i];
+            if (currentVals[i] != SENTINEL)
+              active[i] = true;
+          }
+        }
+
+        bool runActive = true;
+        while (runActive) {
+          int minIdx = -1;
+          int32_t minVal = std::numeric_limits<int32_t>::max();
+
+          for (int i = 0; i < n - 1; ++i) {
+            if (active[i] && currentVals[i] < minVal) {
+              minVal = currentVals[i];
+              minIdx = i;
+            }
+          }
+
+          if (minIdx == -1)
+            break;
+
+          *files[n - 1] << minVal << " ";
+
+          *files[minIdx] >> currentVals[minIdx];
+          if (currentVals[minIdx] == SENTINEL) {
+            active[minIdx] = false;
+          }
+
+          runActive = false;
+          for (int i = 0; i < n - 1; ++i) {
+            if (active[i])
+              runActive = true;
+          }
+        }
+        *files[n - 1] << SENTINEL << " ";
+      }
+
+      for (int i = 0; i < n - 1; ++i)
+        ip[i]--;
+      ip[n - 1]++;
+    }
+
+    L--;
+
+    files[n - 2]->close();
+    files[n - 1]->close();
+
+    auto tmpFile = std::move(files[n - 1]);
+    std::string tmpName = fileNames[n - 1];
+    int tmpIp = ip[n - 1];
+    int tmpMs = ms[n - 1];
+
+    for (int i = n - 1; i > 0; --i) {
+      files[i] = std::move(files[i - 1]);
+      fileNames[i] = fileNames[i - 1];
+      ip[i] = ip[i - 1];
+      ms[i] = ms[i - 1];
+    }
+
+    files[0] = std::move(tmpFile);
+    fileNames[0] = tmpName;
+    ip[0] = tmpIp;
+    ms[0] = tmpMs;
+
+    files[0]->open(fileNames[0], std::ios::in);
+    files[n - 1]->open(fileNames[n - 1], std::ios::out | std::ios::trunc);
   }
 
-  while (true) {
-    int mergePasses = idealPartitions[tapeMap[filesUsed - 2]] +
-                      missingPartitions[tapeMap[filesUsed - 2]];
-    if (mergePasses == 0)
-      break;
+  files[0]->close();
+  std::ifstream finalIn(fileNames[0]);
+  std::ofstream finalOut(filename, std::ios::trunc);
 
-    executePolyphaseMergePass(tapes, idealPartitions, missingPartitions,
-                              tapeMap, filesUsed, mergePasses);
-
-    // Rotate Tapes
-    int oldEmpty = tapeMap[filesUsed - 2];
-    for (int i = filesUsed - 2; i > 0; --i)
-      tapeMap[i] = tapeMap[i - 1];
-    tapeMap[0] = tapeMap[filesUsed - 1];
-    tapeMap[filesUsed - 1] = oldEmpty;
-
-    int total_runs_left = 0;
-    for (int i = 0; i < filesUsed; ++i)
-      total_runs_left += idealPartitions[i];
-    if (total_runs_left <= 1)
-      break;
-  }
-
-  for (int i = 0; i < filesUsed; ++i) {
-    if (idealPartitions[tapeMap[i]] == 1) {
-      std::ifstream fin(tapes[tapeMap[i]]);
-      std::ofstream fout(filename, std::ios::trunc);
-      fout << fin.rdbuf();
-      break;
+  int32_t val;
+  while (finalIn >> val) {
+    if (val != SENTINEL) {
+      finalOut << val << " ";
     }
   }
-  for (int i = 0; i < filesUsed; ++i)
-    std::remove(tapes[i].c_str());
+
+  finalIn.close();
+  finalOut.close();
+
+  for (int i = 0; i < n; ++i) {
+    std::remove(fileNames[i].c_str());
+  }
 }
 
 // --------- Помощники -----------
@@ -489,7 +493,7 @@ int main() {
       {MergeMode::Direct, SortAlgorithm::BalancedMultiway},
       {MergeMode::Natural, SortAlgorithm::BalancedMultiway},
       {MergeMode::Natural, SortAlgorithm::Polyphase}};
-  constexpr int kFilesUsed = 3;
+  constexpr int kFilesUsed = 8;
 
   std::ofstream csv_append("timings_External.csv", std::ios::app);
   csv_append << "Algorithm" << ',' << "Sorting Mode" << ',' << "Array Size"
