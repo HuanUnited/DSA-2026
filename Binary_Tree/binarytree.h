@@ -124,7 +124,7 @@ public:
 
   TreeNode *find(const int value) { return _findSubtree(value, _root); }
 
-  int level(const int value) const { return _findLevel(_root, value, 0); }
+  int level(const int value) const { return _findLevel(_root, value, 1); }
 
   int min() const { return _minSubtree(_root); }
 

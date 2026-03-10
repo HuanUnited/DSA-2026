@@ -213,10 +213,12 @@ void distributePolyphase(const std::string &filename,
                          std::vector<int> &ip, std::vector<int> &ms,
                          int &levels) {
   int n = files.size();
+  // number of runs contained in each file.
   for (int k = 0; k < n - 1; ++k) {
     ip[k] = 1;
     ms[k] = 1;
   }
+  // last file is empty / is the output file
   ip[n - 1] = 0;
   ms[n - 1] = 0;
 
@@ -229,6 +231,7 @@ void distributePolyphase(const std::string &filename,
   if (!(source >> current))
     return;
 
+  // distribute source to files
   bool hasData = true;
   while (hasData) {
     *files[i] << current << " ";
@@ -244,6 +247,7 @@ void distributePolyphase(const std::string &filename,
       prev = current;
     }
 
+    // insert sentinel for separation
     *files[i] << SENTINEL << " ";
     ms[i]--;
 
