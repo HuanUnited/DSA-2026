@@ -1,5 +1,9 @@
 # Prerequisites
 *.d
+build
+
+# Output
+output
 
 # Compiled Object files
 *.slo
@@ -468,3 +472,4 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+.vscode
