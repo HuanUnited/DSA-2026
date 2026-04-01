@@ -27,7 +27,6 @@ BinaryTree::TreeNode *BinaryTree::_copyNode(const TreeNode *sourceNode) {
   return newNode;
 }
 
-// TODO: Delete subtree but without deleting the original node.
 void BinaryTree::_deleteSubtree(TreeNode *node) {
   if (!node)
     return;
@@ -200,6 +199,41 @@ bool BinaryTree::_compareNodes(const TreeNode *node1,
          _compareNodes(node1->right(), node2->right());
 }
 
+void BinaryTree::_swapNodes(TreeNode *node1, TreeNode *node2) {
+  TreeNode *temp(node1);
+  node1->setLeft(node2->left());
+  node1->setRight(node2->right());
+  node1->setValue(node2->value());
+  node2->setRight(temp->right());
+  node2->setLeft(temp->left());
+  node2->setValue(temp->value());
+}
+
+void BinaryTree::_deleteAndSwapNode(TreeNode *target) {
+  if (!target)
+    return;
+  if (_isLeaf(target)) {
+    TreeNode *parent = _findParent(_root, target);
+    if (parent) {
+      if (parent->left() == target)
+        parent->setLeft(nullptr);
+      else
+        parent->setRight(nullptr);
+    }
+    delete target;
+    target = nullptr;
+    return;
+  } else { // If target is not a leaf
+    if (target->left()) {
+      _swapNodes(target, target->left());
+      _deleteSubtree(target->left());
+    } else {
+      _swapNodes(target, target->right());
+      _deleteSubtree(target->left());
+    }
+  }
+}
+
 // --- Modifiers ---
 
 void BinaryTree::clear() {
@@ -236,27 +270,7 @@ bool BinaryTree::remove(const int value) {
   TreeNode *target = find(value);
   if (!target)
     return false;
-
-  TreeNode *leaf = _findLeaf(target);
-  if (!_isLeaf(target)) {
-    int temp = leaf->value();
-    leaf->setValue(target->value());
-    target->setValue(temp);
-  } else {
-    leaf = target;
-  }
-
-  TreeNode *parent = _findParent(_root, leaf);
-  if (parent) {
-    if (parent->left() == leaf)
-      parent->setLeft(nullptr);
-    else
-      parent->setRight(nullptr);
-
-  } else {
-    _root = nullptr;
-  }
-  delete leaf;
+  _deleteAndSwapNode(target);
   return true;
 }
 
