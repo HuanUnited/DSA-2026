@@ -266,6 +266,10 @@ private:
   void _printLevel(TreeNode *root) const;
 
   bool _compareNodes(const TreeNode *node1, const TreeNode *node2) const;
+
+  void _swapNodes(TreeNode *node1, TreeNode *node2);
+
+  void _deleteAndSwapNode(TreeNode *target);
 };
 
 #endif // !BINARY_TREE_H
