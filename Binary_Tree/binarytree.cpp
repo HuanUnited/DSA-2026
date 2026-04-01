@@ -237,7 +237,7 @@ bool BinaryTree::remove(const int value) {
   if (!target)
     return false;
 
-  TreeNode *leaf = _findLeaf(_root);
+  TreeNode *leaf = _findLeaf(target);
   if (!_isLeaf(target)) {
     int temp = leaf->value();
     leaf->setValue(target->value());
