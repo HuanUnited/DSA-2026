@@ -11,7 +11,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(${PROJECT_NAME}
-    main.cpp
+    main_old.cpp
     binarytree.cpp
     binarytree.h
     binarysearchtree.cpp 
