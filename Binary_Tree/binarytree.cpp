@@ -200,18 +200,15 @@ bool BinaryTree::_compareNodes(const TreeNode *node1,
 }
 
 void BinaryTree::_swapNodes(TreeNode *node1, TreeNode *node2) {
-  TreeNode *temp(node1);
-  node1->setLeft(node2->left());
-  node1->setRight(node2->right());
+  int temp = node1->value();
   node1->setValue(node2->value());
-  node2->setRight(temp->right());
-  node2->setLeft(temp->left());
-  node2->setValue(temp->value());
+  node2->setValue(temp);
 }
 
 void BinaryTree::_deleteAndSwapNode(TreeNode *target) {
   if (!target)
     return;
+
   if (_isLeaf(target)) {
     TreeNode *parent = _findParent(_root, target);
     if (parent) {
@@ -219,18 +216,16 @@ void BinaryTree::_deleteAndSwapNode(TreeNode *target) {
         parent->setLeft(nullptr);
       else
         parent->setRight(nullptr);
-    }
-    delete target;
-    target = nullptr;
-    return;
-  } else { // If target is not a leaf
-    if (target->left()) {
-      _swapNodes(target, target->left());
-      _deleteSubtree(target->left());
     } else {
-      _swapNodes(target, target->right());
-      _deleteSubtree(target->left());
+      _root = nullptr;
     }
+    target->setLeft(nullptr);
+    target->setRight(nullptr);
+    delete target;
+  } else {
+    TreeNode *nextTarget = target->left() ? target->left() : target->right();
+    _swapNodes(target, nextTarget);
+    _deleteAndSwapNode(nextTarget);
   }
 }
 

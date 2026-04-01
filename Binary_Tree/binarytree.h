@@ -40,6 +40,10 @@ public:
                       TreeNode *right = nullptr)
         : _value(val), _left(left), _right(right) {};
 
+    ~TreeNode() {
+      delete _right;
+      delete _left;
+    }
     // --- Getters and Setters ---
 
     /** @return The current integer key of the node. */
