@@ -24,7 +24,7 @@ public:
    * requirements.
    */
   class TreeNode {
-  private:
+  protected:
     int _value;
     TreeNode *_left;
     TreeNode *_right;
@@ -39,6 +39,8 @@ public:
     explicit TreeNode(int val, TreeNode *left = nullptr,
                       TreeNode *right = nullptr)
         : _value(val), _left(left), _right(right) {};
+
+    virtual ~TreeNode() {}
 
     // --- Getters and Setters ---
 
