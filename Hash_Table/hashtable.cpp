@@ -9,8 +9,8 @@
 #include <vector>
 
 constexpr int kGroupNumber = 13;
-constexpr unsigned int kC = kGroupNumber / 5;
-constexpr unsigned int kD = kGroupNumber / 7;
+constexpr unsigned int kC = kGroupNumber % 5;
+constexpr unsigned int kD = kGroupNumber % 7;
 const double kA = -1 * (1.0 - std::sqrt(5.0)) / 2.0;
 
 enum class HashType { Quadratic, Recursive, Double };
