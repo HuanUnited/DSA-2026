@@ -28,21 +28,21 @@ private slots:
 
 private:
   HashTable<std::string> *hashTable;
-  QTableWidget *tableWidget;
+  QTableWidget *tableWidget{};
 
-  QLineEdit *keyInput;
-  QLineEdit *valueInput;
-  QLineEdit *removeKeyInput;
-  QLineEdit *existKeyInput;
-  QSpinBox *resizeSpinBox;
-  QComboBox *hashFunctionCombo;
+  QLineEdit *keyInput{};
+  QLineEdit *valueInput{};
+  QLineEdit *removeKeyInput{};
+  QLineEdit *existKeyInput{};
+  QSpinBox *resizeSpinBox{};
+  QComboBox *hashFunctionCombo{};
 
-  QPushButton *insertButton;
-  QPushButton *removeButton;
-  QPushButton *existButton;
-  QPushButton *resizeButton;
+  QPushButton *insertButton{};
+  QPushButton *removeButton{};
+  QPushButton *existButton{};
+  QPushButton *resizeButton{};
 
-  QLabel *statusLabel;
+  QLabel *statusLabel{};
 
   void setupUI();
 };

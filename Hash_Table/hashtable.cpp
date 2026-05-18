@@ -13,7 +13,54 @@ constexpr unsigned int kC = kGroupNumber % 5;
 constexpr unsigned int kD = kGroupNumber % 7;
 const double kA = -1 * (1.0 - std::sqrt(5.0)) / 2.0;
 
-enum class HashType { Quadratic, Recursive, Double };
+#ifndef I_HASH_FUNCTION
+#define I_HASH_FUNCTION
+
+class IHashFunction {
+public:
+    virtual ~IHashFunction() = default;
+
+    [[nodiscard]] virtual unsigned int calcHash(unsigned int key, unsigned int tableSize) const = 0;
+
+    [[nodiscard]] virtual IHashFunction *clone() const = 0;
+};
+
+class QuadraticHash : public IHashFunction {
+public:
+    [[nodiscard]] unsigned int calcHash(unsigned int key, unsigned int tableSize) const override {
+        const unsigned int h0 = key % tableSize;
+        return (h0 + kC + kD) % (tableSize);
+    };
+
+    [[nodiscard]] IHashFunction *clone() const override {
+        return new QuadraticHash(*this);
+    }
+};
+
+class RecursiveHash : public IHashFunction {
+    [[nodiscard]] unsigned int calcHash(unsigned int key, unsigned int tableSize) const override {
+        const unsigned int h0 = key % tableSize;
+        return static_cast<unsigned int>(std::floor(h0 * kA * tableSize)) % tableSize;
+    }
+
+    [[nodiscard]] IHashFunction *clone() const override {
+        return new RecursiveHash(*this);
+    }
+};
+
+class DoubleHash : public IHashFunction {
+    [[nodiscard]] unsigned int calcHash(unsigned int key, unsigned int tableSize) const override {
+        const unsigned int h0 = key % tableSize;
+        const unsigned int h2 = 1 + key % (tableSize - 2);
+        return (h0 + h2) % tableSize;
+    }
+
+    [[nodiscard]] IHashFunction *clone() const override {
+        return new DoubleHash(*this);
+    }
+};
+
+#endif
 
 template<typename T>
 class HashTable {
@@ -21,12 +68,14 @@ private:
     size_t _tableSize = 10;
     std::vector<std::list<std::pair<unsigned int, T> > > _table;
 
-    HashType _currentType = HashType::Quadratic;
+    IHashFunction *_hashFunction = nullptr;
 
-    [[nodiscard]] unsigned int _getHash(unsigned int key, unsigned int iteration) const;
+    [[nodiscard]] unsigned int _getHash(unsigned int key) const;
+
+    void _rehash();
 
 public:
-    HashTable(size_t size = 10) : _tableSize(size), _table(size) {
+    HashTable(size_t size = 10) : _tableSize(size), _table(size), _hashFunction(new QuadraticHash()) {
     }
 
     HashTable(const HashTable &other);
@@ -45,9 +94,8 @@ public:
 
     void resize(size_t size);
 
-    void rehash();
 
-    void setHashFunction(HashType newtype);
+    void setHashFunction(const IHashFunction *newHash);
 
     HashTable &operator=(const HashTable &other);
 
@@ -56,90 +104,56 @@ public:
 
 // Вычисление хеш-значения в зависимости от типа хеш-функции
 template<typename T>
-unsigned int HashTable<T>::_getHash(unsigned int const key,
-                                    unsigned int iteration) const {
-    unsigned int h0 = key % _tableSize;
-
-    switch (_currentType) {
-        case HashType::Quadratic:
-            // hi(K) = (h0(K) + c × i + d × i²) mod N
-            return (h0 + kC * iteration + kD * iteration * iteration) % _tableSize;
-
-        case HashType::Recursive: {
-            // hi(K) = [hi-1(K) × a × N] mod N
-            // Для i=0: h0(K) = K mod N
-            // Для i>0: рекурсивно вычисляем
-            unsigned int hash = h0;
-            for (unsigned int i = 0; i < iteration; ++i) {
-                hash = static_cast<unsigned int>(std::floor(hash * kA * _tableSize)) %
-                       _tableSize;
-            }
-            return hash;
-        }
-
-        case HashType::Double:
-            // hi(K) = ((K mod N) + i × (1 + K mod (N - 2))) mod N
-            return (h0 + iteration * (1 + key % (_tableSize - 2))) % _tableSize;
-
-        default:
-            return h0;
+unsigned int HashTable<T>::_getHash(unsigned int const key) const {
+    if (_hashFunction) {
+        return _hashFunction->calcHash(key, _tableSize);
     }
+    return key % _tableSize;
 }
 
 // Конструктор копирования
 template<typename T>
 HashTable<T>::HashTable(const HashTable &other)
-    : _tableSize(other._tableSize), _table(other._table),
-      _currentType(other._currentType) {
+    : _tableSize(other._tableSize), _table(other._table) {
+    if (other._hashFunction) {
+        _hashFunction = other._hashFunction->clone();
+    } else {
+        _hashFunction = new QuadraticHash();
+    }
 }
 
 // Деструктор
 // Векторы и списки автоматически освобождают память
 template<typename T>
-HashTable<T>::~HashTable() = default;
+HashTable<T>::~HashTable() {
+    delete _hashFunction;
+}
 
+// Вставка элемента
 // Вставка элемента
 template<typename T>
 void HashTable<T>::insert(unsigned int const key, T const element) {
-    // Проходим по всем возможным позициям
-    for (unsigned int i = 0; i < _tableSize; ++i) {
-        unsigned int currentIndex = _getHash(key, i);
+    unsigned int currentIndex = _getHash(key);
 
-        // Проверяем, есть ли элемент с таким ключом в списке
-        for (auto &pair: _table[currentIndex]) {
-            if (pair.first == key) {
-                // Ключ найден, обновляем значение
-                pair.second = element;
-                return;
-            }
+    for (auto &pair: _table[currentIndex]) {
+        if (pair.first == key) {
+            pair.second = element;
+            return;
         }
-
-        // Элемента с таким ключом нет, добавляем в этот индекс
-        _table[currentIndex].push_back({key, element});
-        return;
     }
 
-    // Если таблица переполнена (все ячейки проверены)
-    std::cerr << "Hash table is full, cannot insert key " << key << std::endl;
+    _table[currentIndex].push_back({key, element});
 }
 
 // Удаление элемента по ключу
 template<typename T>
 void HashTable<T>::remove(unsigned int const key) {
-    for (unsigned int i = 0; i < _tableSize; ++i) {
-        unsigned int currentIndex = _getHash(key, i);
+    unsigned int currentIndex = _getHash(key);
 
-        // Ищем элемент с данным ключом в списке
-        for (auto it = _table[currentIndex].begin();
-             it != _table[currentIndex].end(); ++it) {
-            if (it->first == key) {
-                _table[currentIndex].erase(it);
-                return;
-            }
-        }
-
-        // Если ячейка пуста, элемент не найден
-        if (_table[currentIndex].empty()) {
+    for (auto it = _table[currentIndex].begin();
+         it != _table[currentIndex].end(); ++it) {
+        if (it->first == key) {
+            _table[currentIndex].erase(it);
             return;
         }
     }
@@ -148,19 +162,11 @@ void HashTable<T>::remove(unsigned int const key) {
 // Проверка наличия элемента
 template<typename T>
 bool HashTable<T>::exist(unsigned int const key) const {
-    for (unsigned int i = 0; i < _tableSize; ++i) {
-        unsigned int currentIndex = _getHash(key, i);
+    unsigned int currentIndex = _getHash(key);
 
-        // Ищем элемент с данным ключом в списке
-        for (const auto &pair: _table[currentIndex]) {
-            if (pair.first == key) {
-                return true;
-            }
-        }
-
-        // Если ячейка пуста, элемент не найден
-        if (_table[currentIndex].empty()) {
-            return false;
+    for (const auto &pair: _table[currentIndex]) {
+        if (pair.first == key) {
+            return true;
         }
     }
 
@@ -172,7 +178,7 @@ template<typename T>
 void HashTable<T>::swap(HashTable &other) noexcept {
     std::swap(_tableSize, other._tableSize);
     std::swap(_table, other._table);
-    std::swap(_currentType, other._currentType);
+    std::swap(_hashFunction, other._hashFunction);
 }
 
 // Вывод содержимого таблицы в консоль
@@ -225,7 +231,7 @@ void HashTable<T>::resize(size_t const size) {
 
 // Пересчёт позиций элементов с текущей хеш-функцией
 template<typename T>
-void HashTable<T>::rehash() {
+void HashTable<T>::_rehash() {
     // Сохраняем все элементы
     std::vector<std::pair<unsigned int, T> > allElements;
 
@@ -247,9 +253,12 @@ void HashTable<T>::rehash() {
 
 // Замена хеш-функции
 template<typename T>
-void HashTable<T>::setHashFunction(const HashType newtype) {
-    _currentType = newtype;
-    rehash(); // Пересчитываем позиции всех элементов
+void HashTable<T>::setHashFunction(const IHashFunction *newHash) {
+    if (newHash) {
+        delete _hashFunction;
+        _hashFunction = newHash->clone();
+        _rehash();
+    }
 }
 
 // Оператор присваивания
@@ -258,7 +267,12 @@ HashTable<T> &HashTable<T>::operator=(const HashTable &other) {
     if (this != &other) {
         _tableSize = other._tableSize;
         _table = other._table;
-        _currentType = other._currentType;
+        delete _hashFunction;
+        if (other._hashFunction) {
+            _hashFunction = other._hashFunction->clone();
+        } else {
+            _hashFunction = new QuadraticHash();
+        }
     }
     return *this;
 }
@@ -266,27 +280,16 @@ HashTable<T> &HashTable<T>::operator=(const HashTable &other) {
 // Получение ссылки на значение по ключу
 template<typename T>
 T &HashTable<T>::operator[](const unsigned int key) {
-    // Ищем элемент
-    for (unsigned int i = 0; i < _tableSize; ++i) {
-        unsigned int currentIndex = _getHash(key, i);
+    unsigned int currentIndex = _getHash(key);
 
-        for (auto &pair: _table[currentIndex]) {
-            if (pair.first == key) {
-                return pair.second;
-            }
-        }
-
-        // Если нашли пустую ячейку, добавляем новый элемент
-        if (_table[currentIndex].empty()) {
-            _table[currentIndex].push_back({key, T()});
-            return _table[currentIndex].back().second;
+    for (auto &pair: _table[currentIndex]) {
+        if (pair.first == key) {
+            return pair.second;
         }
     }
 
-    // Если таблица заполнена, добавляем в последнюю позицию
-    unsigned int lastIndex = _getHash(key, _tableSize - 1);
-    _table[lastIndex].push_back({key, T()});
-    return _table[lastIndex].back().second;
+    _table[currentIndex].push_back({key, T()});
+    return _table[currentIndex].back().second;
 }
 
 #endif // HASHTABLE

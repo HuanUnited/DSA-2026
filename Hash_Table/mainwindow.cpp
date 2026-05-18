@@ -16,13 +16,12 @@ void MainWindow::setupUI() {
   setWindowTitle("Хеш-таблица - Лабораторная работа");
   setMinimumSize(800, 600);
 
-  QWidget *centralWidget = new QWidget(this);
+  auto *centralWidget = new QWidget(this);
   setCentralWidget(centralWidget);
 
-  QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
+  auto mainLayout = new QVBoxLayout(centralWidget);
 
-  // Заголовок
-  QLabel *titleLabel = new QLabel("Визуализация хеш-таблицы", this);
+  auto *titleLabel = new QLabel("Визуализация хеш-таблицы", this);
   QFont titleFont = titleLabel->font();
   titleFont.setPointSize(16);
   titleFont.setBold(true);
@@ -30,11 +29,10 @@ void MainWindow::setupUI() {
   titleLabel->setAlignment(Qt::AlignCenter);
   mainLayout->addWidget(titleLabel);
 
-  // Секция выбора хеш-функции
-  QGroupBox *hashFunctionGroup = new QGroupBox("Хеш-функция", this);
-  QHBoxLayout *hashFunctionLayout = new QHBoxLayout(hashFunctionGroup);
+  auto hashFunctionGroup = new QGroupBox("Хеш-функция", this);
+  auto *hashFunctionLayout = new QHBoxLayout(hashFunctionGroup);
 
-  QLabel *hashFunctionLabel = new QLabel("Выберите хеш-функцию:", this);
+  auto *hashFunctionLabel = new QLabel("Выберите хеш-функцию:", this);
   hashFunctionCombo = new QComboBox(this);
   hashFunctionCombo->addItem("Квадратичная: hi(K) = (h0 + c×i + d×i²) mod N");
   hashFunctionCombo->addItem("Рекурсивная: hi(K) = [hi-1×a×N] mod N");
@@ -48,21 +46,19 @@ void MainWindow::setupUI() {
   connect(hashFunctionCombo, SIGNAL(currentIndexChanged(int)), this,
           SLOT(onHashFunctionChanged(int)));
 
-  // Секция управления
-  QGroupBox *controlGroup = new QGroupBox("Операции с таблицей", this);
-  QGridLayout *controlLayout = new QGridLayout(controlGroup);
+  auto *controlGroup = new QGroupBox("Операции с таблицей", this);
+  auto *controlLayout = new QGridLayout(controlGroup);
 
-  // Вставка
-  QLabel *insertLabel = new QLabel("Добавить элемент:", this);
+  auto *insertLabel = new QLabel("Добавить элемент:", this);
   controlLayout->addWidget(insertLabel, 0, 0);
 
-  QLabel *keyLabel = new QLabel("Ключ:", this);
+  auto *keyLabel = new QLabel("Ключ:", this);
   keyInput = new QLineEdit(this);
   keyInput->setPlaceholderText("Введите ключ (число)");
   controlLayout->addWidget(keyLabel, 0, 1);
   controlLayout->addWidget(keyInput, 0, 2);
 
-  QLabel *valueLabel = new QLabel("Значение:", this);
+  auto *valueLabel = new QLabel("Значение:", this);
   valueInput = new QLineEdit(this);
   valueInput->setPlaceholderText("Введите значение");
   controlLayout->addWidget(valueLabel, 0, 3);
@@ -73,11 +69,10 @@ void MainWindow::setupUI() {
   connect(insertButton, &QPushButton::clicked, this,
           &MainWindow::onInsertClicked);
 
-  // Удаление
-  QLabel *removeLabel = new QLabel("Удалить элемент:", this);
+  auto *removeLabel = new QLabel("Удалить элемент:", this);
   controlLayout->addWidget(removeLabel, 1, 0);
 
-  QLabel *removeKeyLabel = new QLabel("Ключ:", this);
+  auto *removeKeyLabel = new QLabel("Ключ:", this);
   removeKeyInput = new QLineEdit(this);
   removeKeyInput->setPlaceholderText("Введите ключ для удаления");
   controlLayout->addWidget(removeKeyLabel, 1, 1);
@@ -88,11 +83,10 @@ void MainWindow::setupUI() {
   connect(removeButton, &QPushButton::clicked, this,
           &MainWindow::onRemoveClicked);
 
-  // Проверка существования
-  QLabel *existLabel = new QLabel("Проверить наличие:", this);
+  auto *existLabel = new QLabel("Проверить наличие:", this);
   controlLayout->addWidget(existLabel, 2, 0);
 
-  QLabel *existKeyLabel = new QLabel("Ключ:", this);
+  auto *existKeyLabel = new QLabel("Ключ:", this);
   existKeyInput = new QLineEdit(this);
   existKeyInput->setPlaceholderText("Введите ключ для проверки");
   controlLayout->addWidget(existKeyLabel, 2, 1);
@@ -103,8 +97,7 @@ void MainWindow::setupUI() {
   connect(existButton, &QPushButton::clicked, this,
           &MainWindow::onExistClicked);
 
-  // Изменение размера
-  QLabel *resizeLabel = new QLabel("Изменить размер:", this);
+  auto *resizeLabel = new QLabel("Изменить размер:", this);
   controlLayout->addWidget(resizeLabel, 3, 0);
 
   resizeSpinBox = new QSpinBox(this);
@@ -120,9 +113,8 @@ void MainWindow::setupUI() {
 
   mainLayout->addWidget(controlGroup);
 
-  // Таблица для отображения хеш-таблицы
-  QGroupBox *tableGroup = new QGroupBox("Содержимое хеш-таблицы", this);
-  QVBoxLayout *tableLayout = new QVBoxLayout(tableGroup);
+  auto *tableGroup = new QGroupBox("Содержимое хеш-таблицы", this);
+  auto *tableLayout = new QVBoxLayout(tableGroup);
 
   tableWidget = new QTableWidget(this);
   tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -132,7 +124,6 @@ void MainWindow::setupUI() {
   tableLayout->addWidget(tableWidget);
   mainLayout->addWidget(tableGroup, 1);
 
-  // Строка состояния
   statusLabel = new QLabel("Готово к работе", this);
   statusLabel->setStyleSheet("QLabel { padding: 5px; background-color: gray; }");
   mainLayout->addWidget(statusLabel);
@@ -212,23 +203,24 @@ void MainWindow::onResizeClicked() {
 }
 
 void MainWindow::onHashFunctionChanged(int index) {
-  HashType newType;
+  IHashFunction* newHash = nullptr;
 
   switch (index) {
   case 0:
-    newType = HashType::Quadratic;
+    newHash = new QuadraticHash();
     break;
   case 1:
-    newType = HashType::Recursive;
+    newHash = new RecursiveHash();
     break;
   case 2:
-    newType = HashType::Double;
+    newHash = new DoubleHash();
     break;
   default:
-    newType = HashType::Quadratic;
+    newHash = new QuadraticHash();
   }
 
-  hashTable->setHashFunction(newType);
+  hashTable->setHashFunction(newHash);
+  delete newHash;
   updateTable();
 
   QString hashName;
@@ -242,6 +234,9 @@ void MainWindow::onHashFunctionChanged(int index) {
   case 2:
     hashName = "Двойное хеширование";
     break;
+  default:
+      hashName = "Квадратичная";
+      break;
   }
 
   statusLabel->setText(QString("Хеш-функция изменена на: %1").arg(hashName));
